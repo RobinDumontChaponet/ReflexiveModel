@@ -1,0 +1,35 @@
+{
+	"name": "reflexive/model",
+	"description": "Description is coming",
+	"type": "library",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Robin Dumont-Chaponet",
+			"email": "src@dumontchapo.net",
+			"homepage": "https://robin.dumontchapo.net",
+			"role": "Developer"
+		}
+	],
+	"require": {
+		"php":                  "~8.1.0",
+		"composer-runtime-api": "^2.0.0",
+		"reflexive/core": "dev-master as 0.1",
+		"reflexive/query": "dev-master as 0.1"
+	},
+	"autoload": {
+		"psr-4": {
+			"Reflexive\\Model\\": "src/"
+		}
+	},
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/Users/r-dc/Sites/Reflexive/Core"
+        },
+		{
+			"type": "path",
+			"url": "/Users/r-dc/Sites/Reflexive/Query"
+		}
+    ]
+}
