@@ -1,6 +1,6 @@
 <?php
 
-namespace Reflexive\Core;
+namespace Reflexive\Model;
 
 use Reflexive\Core\Database as DB;
 

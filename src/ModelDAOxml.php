@@ -1,6 +1,6 @@
 <?php
 
-namespace Reflexive\Core;
+namespace Reflexive\Model;
 
 abstract class ModelDAOxml
 {

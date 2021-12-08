@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Reflexive\Core;
+namespace Reflexive\Model;
 
 class Collection implements \Iterator, \ArrayAccess, \Countable
 {
