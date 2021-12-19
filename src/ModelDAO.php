@@ -2,9 +2,11 @@
 
 namespace Reflexive\Model;
 
-use Reflexive\Core\Database as DB;
+use Reflexive\Core\{Database as DB, Comparator};
+use Reflexive\Query;
 
-abstract class ModelDAO implements SCRUDInterface
+// implements SCRUDInterface
+abstract class ModelDAO
 {
 	const TABLE_NAME = '';
 	protected static $className = 'Member';
@@ -49,16 +51,12 @@ abstract class ModelDAO implements SCRUDInterface
 		return self::getInstance()->prepare($statement);
 	}
 
-	static function delete($object)
+	static function delete($object): ModelStatement
 	{
-		$statement = self::prepare('DELETE FROM '.self::getTableName().' WHERE id=?');
-		$statement->bindValue(1, $object->getId());
-		$statement->execute();
-
-		return $statement->rowCount();
+		return new DeleteModelStatement($object);
 	}
 
-	protected static function _search(array $on, string $combinator = 'OR', int $limit = null, int $offset = null): array
+	/* protected static function _search(array $on, string $combinator = 'OR', int $limit = null, int $offset = null): array
 	{
 		$statement = self::prepare('SELECT * FROM '.self::getTableName());
 		$statement->setLimit($limit);
@@ -75,32 +73,42 @@ abstract class ModelDAO implements SCRUDInterface
 		}
 
 		return $objects;
-	}
+	} */
 
-	static function search(array $on, string $combinator = 'OR', int $limit = null, int $offset = null): array
+	static function search(array $on, Query\Operator $combinator = Query\Operator::OR, int $limit = null, int $offset = null): Collection
 	{
-		$objects = array();
+		$query = Query::select()
+			->from(self::getTableName())
+			->limit($limit)
+			->offset($offset);
 
-		$statement = self::prepare('SELECT * FROM '.self::getTableName());
-		$statement->setLimit($limit);
-		$statement->setOffset($offset);
-
-		$statement->setCombinator($combinator);
-		$statement->autoBindClause(':id', @$on['id'], 'id = :id');
-
-		$statement->execute();
-
-		while ($rs = $statement->getStatement()->fetch(PDO::FETCH_OBJ)) {
-			$objects[$rs->id] = new static::$className();
-			$objects[$rs->id]->setId($rs->id);
+		foreach($on as $key => $value) {
+			if($combinator == Query\Operator::OR)
+				$query->or($key, Comparator::EQUAL, $value);
+			else
+				$query->and($key, Comparator::EQUAL, $value);
 		}
 
-		return $objects;
+		$query->prepare(self::getInstance());
+		return new Collection(
+			$query,
+			function($rs) {
+				$object = new static::$className();
+				$object->setId($rs->id);
+
+				return [$rs->id, $object];
+			}
+		);
 	}
 
 	static function count(): ?int
 	{
-		$statement = self::prepare('SELECT COUNT(*) AS c FROM '.self::getTableName());
+		$statement = Query\Composed::count(
+			'* AS c'
+		)
+			->from(self::getTableName())
+			->prepare(self::getInstance());
+
 		$statement->execute();
 
 		if ($rs = $statement->fetch(\PDO::FETCH_OBJ)) {

@@ -14,22 +14,13 @@ use Attribute;
 // Attribute::TARGET_PARAMETER
 // Attribute::TARGET_ALL
 
-#[Attribute(Attribute::TARGET_PROPERTY)]
+#[Attribute(Attribute::TARGET_CLASS)]
 class ModelAttribute
 {
 	// const VALUE = 'value';
 
 	public function __construct(
-		public readonly string $columnName,
-		public readonly bool|string $makeGetter = true,
-		public readonly bool|string $makeSetter = true,
+		public readonly string $tableName,
 	)
 	{}
 }
-
-
-/*
-
-- columnName : bind to column in DB ;
-
-*/

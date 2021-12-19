@@ -4,34 +4,38 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use Reflexive\Core\Comparator;
 use ReflectionClass;
 
 abstract class Model implements \JsonSerializable
 {
-	private array $classAttributes = [];
-	private array $propertiesAttributes = [];
+	protected static array $getters = [];
+	protected static array $attributed = [];
 
-	private array $getters = [];
+	public static function initModelAttributes(): void
+	{
+		if(!isset(self::$attributed[static::class])) {
+			$classReflection = new ReflectionClass(static::class);
+
+			// get attributes of properties
+			foreach($classReflection->getProperties() as $propertyReflection) {
+				foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+					$modelAttribute = $attributeReflection->newInstance();
+
+					if(!empty($modelAttribute->makeGetter))
+						static::$getters[is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
+				}
+			}
+
+			self::$attributed[static::class] = true;
+		}
+	}
 
     public function __construct(
 		protected int|string $id = -1,
-	) {
-		$classReflection = new ReflectionClass($this);
-		// get attributes of class
-		foreach($classReflection->getAttributes(ModelAttribute::class) as $attributeReflection) {
-			$this->classAttributes[] = $attributeReflection->newInstance();
-		}
-
-		// get attributes of properties
-		foreach($classReflection->getProperties() as $propertyReflection) {
-			foreach($propertyReflection->getAttributes(ModelAttribute::class) as $attributeReflection) {
-				$modelAttribute = $attributeReflection->newInstance();
-				$this->propertiesAttributes[$propertyReflection->getName()] = $modelAttribute;
-
-				if(!empty($modelAttribute->makeGetter))
-					$this->getters[is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
-			}
-		}
+	)
+	{
+		static::initModelAttributes();
 	}
 
     public function getId(): int|string
@@ -46,7 +50,7 @@ abstract class Model implements \JsonSerializable
 
     public function __toString()
     {
-        return  self::class.' [ id: '.$this->id.(((!get_parent_class())) ? ' ]' : ';  ');
+        return  static::class.' [ id: '.$this->id.(((!get_parent_class())) ? ' ]' : ';  ');
     }
 
     public function jsonSerialize(): mixed
@@ -71,5 +75,19 @@ abstract class Model implements \JsonSerializable
 		} else {
 			trigger_error('Call to undefined method '.__CLASS__.'::'.$name.'()', E_USER_ERROR);
 		}
+	}
+
+	/*
+	 * Active Record
+	 */
+
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array $value = null): ModelStatement
+	{
+		$query = new Search(static::class);
+
+		if(isset($name))
+			$query->search($name, $comparator, $value);
+
+		return $query;
 	}
 }
