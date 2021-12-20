@@ -19,6 +19,7 @@ class ModelProperty
 		public readonly bool|string $makeSetter = true,
 		public readonly string $type = 'string',
 		public readonly bool $nullable = false,
+		public readonly bool $autoIncrement = false,
 	)
 	{}
 }

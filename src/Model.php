@@ -32,6 +32,7 @@ abstract class Model implements \JsonSerializable
 	}
 
     public function __construct(
+		#[ModelProperty('id', autoIncrement: true)]
 		protected int|string $id = -1,
 	)
 	{
@@ -81,13 +82,35 @@ abstract class Model implements \JsonSerializable
 	 * Active Record
 	 */
 
-	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array $value = null): ModelStatement
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
 	{
 		$query = new Search(static::class);
 
 		if(isset($name))
-			$query->search($name, $comparator, $value);
+			$query->where($name, $comparator, $value);
 
+		return $query;
+	}
+
+	public static function create(Model &$model): ModelStatement
+	{
+		$query = new Create($model);
+		return $query;
+	}
+
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
+	{
+		$query = new Read(static::class);
+
+		if(isset($name))
+			$query->where($name, $comparator, $value);
+
+		return $query;
+	}
+
+	public static function update(Model &$model): ModelStatement
+	{
+		$query = new Update($model);
 		return $query;
 	}
 }

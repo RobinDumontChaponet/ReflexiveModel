@@ -7,8 +7,11 @@ namespace Reflexive\Model;
 use Reflexive\Core\Comparator;
 use Reflexive\Query;
 use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionUnionType;
+use ReflectionIntersectionType;
 
-class ModelStatement
+abstract class ModelStatement
 {
 	// some config. Not in use.
 	public bool $useAccessors = false;
@@ -26,8 +29,22 @@ class ModelStatement
 	)
 	{}
 
-	public function execute(\PDO $database): Collection
+	private function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
 	{
+		foreach($reflection->getProperties() as $propertyReflection) {
+			foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+				$modelAttribute = $attributeReflection->newInstance();
+
+				if(!empty($modelAttribute->columnName))
+					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->columnName);
+
+				if(!empty($modelAttribute->autoIncrement))
+					$schema->setAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
+			}
+		}
+	}
+
+	protected function initSchema() {
 		if(!isset($this->schema)) {
 			if(!isset(self::$schemas[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
@@ -40,24 +57,54 @@ class ModelStatement
 
 				if(isset($schema)) {
 					// get attributes of properties
-					foreach($classReflection->getProperties() as $propertyReflection) {
-						foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
-							$modelAttribute = $attributeReflection->newInstance();
+					$this->reflectPropertiesAttributes($classReflection, $schema);
 
-							if(!empty($modelAttribute->columnName))
-								$schema->setColumnName($propertyReflection->getName(), $modelAttribute->columnName);
-						}
+					// get attributes of traits properties
+					foreach($classReflection->getTraits() as $traitReflection) {
+						$this->reflectPropertiesAttributes($traitReflection, $schema);
 					}
 
-					self::$generators[static::class] = function($rs) use ($classReflection, $schema) {
+					// "generator" instantiate object without calling its constructor when needed by Collection
+					self::$generators[$this->modelClassName] = function($rs) use ($classReflection, $schema) {
 						$this->modelClassName::initModelAttributes();
 						$object = $classReflection->newInstanceWithoutConstructor();
 						$object->setId($rs->id);
 
-						foreach($schema->getColumns() as $propertyName => $columnName) {
+						foreach($schema->getColumns() as $propertyName => $column) {
 							$propertyReflexion = $classReflection->getProperty($propertyName);
 							$propertyReflexion->setAccessible(true);
-							$propertyReflexion->setValue($object, $rs->$columnName);
+
+							$type = $propertyReflexion->getType();
+							if(isset($type)) {
+								if($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType)
+									$types = $type->getTypes();
+									// throw new \TypeError('Cannot use union and intersection type');
+								else
+									$types = [$type];
+							}
+							if(!empty($types)) {
+								foreach($types as $type) {
+									if($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType)
+										$types = $type->getTypes();
+									else
+										$types = [$type];
+
+									if(is_null($rs->{$column['name']}) && $type->allowsNull()) // is null and nullable
+										$propertyReflexion->setValue($object, $rs->{$column['name']});
+									else {
+										if($type->isBuiltin()) { // PHP builtin types
+											$propertyReflexion->setValue($object, $rs->{$column['name']});
+											break;
+										} else {
+											$propertyReflexion->setValue($object, match($type->getName()) {
+												'DateTime' => new \DateTime($rs->{$column['name']}),
+											});
+										}
+									}
+								}
+							} else {
+								$propertyReflexion->setValue($object, $rs->{$column['name']});
+							}
 						}
 
 						return [$rs->id, $object];
@@ -74,12 +121,15 @@ class ModelStatement
 		}
 
 		$this->query->from($this->schema->getTableName());
-
-		return new Collection(
-			$this->query->prepare($database),
-			self::$generators[static::class]
-		);
 	}
+
+	protected function _execute(\PDO $database): \PDOStatement
+	{
+		$this->initSchema();
+		return $this->query->prepare($database);
+	}
+
+	public abstract function execute(\PDO $database);
 
 	// properties
 
@@ -89,21 +139,35 @@ class ModelStatement
 		return $this;
 	}
 
-	public function search(string $name, Comparator $comparator, string|int|float|array $value = null): static
+	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool $value = null): static
 	{
-		$this->query->where($name, $comparator, $value);
+		$this->initSchema();
+
+		if($this->schema->hasColumn($propertyName)) {
+			if(is_bool($value))
+				$value = (int)$value;
+
+			$this->query->where($this->schema->getColumnName($propertyName), $comparator, $value);
+		} else {
+			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+		}
+
 		return $this;
 	}
 
 	public function and(...$where): static
 	{
-		$this->query->and($where);
+		$this->query->and();
+		$this->where($where);
+
 		return $this;
 	}
 
 	public function or(...$where): static
 	{
-		$this->or($where);
+		$this->or();
+		$this->where($where);
+
 		return $this;
 	}
 

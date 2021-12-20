@@ -8,6 +8,9 @@ use Reflexive\Core\Comparator;
 
 class Schema implements \JsonSerializable
 {
+	/*
+	 * $columns[propertyName] = columnName;
+	 */
 	protected array $columns = [];
 
 	public function __construct(
@@ -15,14 +18,33 @@ class Schema implements \JsonSerializable
 	)
 	{}
 
+	public function hasColumn(int|string $key): bool
+	{
+		return isset($this->columns[$key]);
+	}
+
 	public function getColumnName(int|string $key): ?string
 	{
-		return $this->columns[$key] ?? null;
+		if($this->hasColumn($key))
+			return $this->columns[$key]['name'];
+
+		return null;
 	}
 
 	public function setColumnName(int|string $key, string $name): void
 	{
-		$this->columns[$key] = $name;
+		if($this->hasColumn($key))
+			$this->columns[$key]['name'] = $name;
+		else
+			$this->columns[$key] = ['name' => $name];
+	}
+
+	public function setAutoIncrement(int|string $key, bool $state = true): void
+	{
+		if($this->hasColumn($key))
+			$this->columns[$key]['autoIncrement'] = $state;
+		else
+			$this->columns[$key] = ['autoIncrement' => $state];
 	}
 
 	public function getColumns(): array
