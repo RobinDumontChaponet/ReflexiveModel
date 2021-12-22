@@ -38,11 +38,5 @@ class Create extends ModelStatement
 		$statement->execute();
 
 		$this->model->setId($database->lastInsertId());
-
-// 		if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
-// 			return self::$generators[$this->modelClassName]($rs)[1];
-// 		}
-//
-// 		return null;
 	}
 }

@@ -34,16 +34,7 @@ class Update extends ModelStatement
 			$this->query->set($column['name'], $value);
 		}
 
-		// $this->query->bake();
 		$statement = $this->query->prepare($database);
-		// echo $this->query;
-
 		$statement->execute();
-
-// 		if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
-// 			return self::$generators[$this->modelClassName]($rs)[1];
-// 		}
-//
-// 		return null;
 	}
 }

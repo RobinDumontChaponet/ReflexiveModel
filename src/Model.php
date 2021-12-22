@@ -23,7 +23,7 @@ abstract class Model implements \JsonSerializable
 					$modelAttribute = $attributeReflection->newInstance();
 
 					if(!empty($modelAttribute->makeGetter))
-						static::$getters[is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
+						static::$getters[static::class][is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
 				}
 			}
 
@@ -71,8 +71,8 @@ abstract class Model implements \JsonSerializable
 
 	public function __call($name, $arguments)
 	{
-		if(isset($this->getters[$name])) {
-			return $this->{$this->getters[$name]};
+		if(isset(static::$getters[static::class][$name])) {
+			return static::$getters[static::class][$name]();
 		} else {
 			trigger_error('Call to undefined method '.__CLASS__.'::'.$name.'()', E_USER_ERROR);
 		}

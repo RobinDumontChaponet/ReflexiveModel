@@ -89,9 +89,10 @@ abstract class ModelStatement
 									else
 										$types = [$type];
 
-									if(is_null($rs->{$column['name']}) && $type->allowsNull()) // is null and nullable
+									if(is_null($rs->{$column['name']}) && $type->allowsNull()) { // is null and nullable
 										$propertyReflexion->setValue($object, $rs->{$column['name']});
-									else {
+										break;
+									} else {
 										if($type->isBuiltin()) { // PHP builtin types
 											$propertyReflexion->setValue($object, $rs->{$column['name']});
 											break;
@@ -99,6 +100,7 @@ abstract class ModelStatement
 											$propertyReflexion->setValue($object, match($type->getName()) {
 												'DateTime' => new \DateTime($rs->{$column['name']}),
 											});
+											break;
 										}
 									}
 								}
@@ -130,8 +132,6 @@ abstract class ModelStatement
 	}
 
 	public abstract function execute(\PDO $database);
-
-	// properties
 
 	public function from(Schema $schema): static
 	{
@@ -170,7 +170,6 @@ abstract class ModelStatement
 
 		return $this;
 	}
-
 
 	public function __toString(): string
 	{
