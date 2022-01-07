@@ -5,12 +5,26 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
+use Reflexive\Query;
 use ReflectionClass;
 
 abstract class Model implements \JsonSerializable
 {
 	protected static array $getters = [];
 	protected static array $attributed = [];
+
+	protected array $modifiedProperties = [];
+	public bool $ignoreModifiedProperties = false;
+
+	public function getModifiedPropertiesNames(): array
+	{
+		return $this->modifiedProperties;
+	}
+
+	public function resetModifiedPropertiesNames(): void
+	{
+		$this->modifiedProperties = [];
+	}
 
 	public static function initModelAttributes(): void
 	{
@@ -74,8 +88,22 @@ abstract class Model implements \JsonSerializable
 		if(isset(static::$getters[static::class][$name])) {
 			return static::$getters[static::class][$name]();
 		} else {
-			trigger_error('Call to undefined method '.__CLASS__.'::'.$name.'()', E_USER_ERROR);
+			set_error_handler(self::errorHandler());
+			trigger_error('Call to undefined method '.static::class.'::'.$name.'()', E_USER_ERROR);
 		}
+	}
+
+	private static function errorHandler()
+	{
+		return function($level, $message, $file, $line) {
+			if($file == __FILE__) {
+				$debug = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+
+				echo PHP_EOL, '<strong>'.$message.'</strong> in '.($debug[2]['file']??'?').' on line '.($debug[2]['line']??'?'), PHP_EOL;
+				return true; // prevent the PHP error handler from continuing
+			}
+			return false;
+		};
 	}
 
 	/*
@@ -94,8 +122,7 @@ abstract class Model implements \JsonSerializable
 
 	public static function create(Model &$model): ModelStatement
 	{
-		$query = new Create($model);
-		return $query;
+		return new Create($model);
 	}
 
 	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
@@ -110,7 +137,22 @@ abstract class Model implements \JsonSerializable
 
 	public static function update(Model &$model): ModelStatement
 	{
-		$query = new Update($model);
-		return $query;
+		return new Update($model);
+	}
+
+	public static function delete(Model &$model): ModelStatement
+	{
+		return new Delete($model);
+	}
+
+	public static function count(array $columns = ['*']): ?Query\Select
+	{
+		$schema = Schema::initFromAttributes(static::class);
+		if(isset($schema)) {
+			$query = new Query\Select(['c' => 'COUNT(' . implode(', ', $columns) . ')']);
+			$query->from($schema->getTableName());
+		}
+
+		return $query ?? null;
 	}
 }

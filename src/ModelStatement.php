@@ -14,115 +14,73 @@ use ReflectionIntersectionType;
 abstract class ModelStatement
 {
 	// some config. Not in use.
-	public bool $useAccessors = false;
+	// public bool $useAccessors = false;
 
 	// internals
 	protected Query\Composed $query;
 	protected ?Schema $schema;
 
 	// global caches ?
-	private static array $schemas = [];
-	protected static array $generators = [];
+	protected static array $instanciators = [];
 
 	protected function __construct(
 		protected string $modelClassName,
 	)
 	{}
 
-	private function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
-	{
-		foreach($reflection->getProperties() as $propertyReflection) {
-			foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
-				$modelAttribute = $attributeReflection->newInstance();
-
-				if(!empty($modelAttribute->columnName))
-					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->columnName);
-
-				if(!empty($modelAttribute->autoIncrement))
-					$schema->setAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
-			}
-		}
-	}
-
 	protected function initSchema() {
 		if(!isset($this->schema)) {
-			if(!isset(self::$schemas[$this->modelClassName])) {
+			$schema = Schema::initFromAttributes($this->modelClassName);
+
+			if(isset($schema) && !isset(self::$instanciators[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
-				// get attributes of class
-				foreach($classReflection->getAttributes(ModelAttribute::class) as $attributeReflection) {
-					$attribute =  $attributeReflection->newInstance();
-					if(!empty($attribute->tableName))
-						$schema = new Schema($attribute->tableName);
-				}
 
-				if(isset($schema)) {
-					// get attributes of properties
-					$this->reflectPropertiesAttributes($classReflection, $schema);
+				// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
+				self::$instanciators[$this->modelClassName] = function($rs) use ($classReflection, $schema) {
+					$this->modelClassName::initModelAttributes();
+					$object = $classReflection->newInstanceWithoutConstructor();
+					$object->setId($rs->id);
 
-					// get attributes of traits properties
-					foreach($classReflection->getTraits() as $traitReflection) {
-						$this->reflectPropertiesAttributes($traitReflection, $schema);
-					}
-
-					// "generator" instantiate object without calling its constructor when needed by Collection
-					self::$generators[$this->modelClassName] = function($rs) use ($classReflection, $schema) {
-						$this->modelClassName::initModelAttributes();
-						$object = $classReflection->newInstanceWithoutConstructor();
-						$object->setId($rs->id);
-
-						foreach($schema->getColumns() as $propertyName => $column) {
+					foreach($schema->getColumns() as $propertyName => $column) {
+						if(isset($column['name'])) {
 							$propertyReflexion = $classReflection->getProperty($propertyName);
 							$propertyReflexion->setAccessible(true);
 
-							$type = $propertyReflexion->getType();
-							if(isset($type)) {
-								if($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType)
-									$types = $type->getTypes();
-									// throw new \TypeError('Cannot use union and intersection type');
-								else
-									$types = [$type];
-							}
-							if(!empty($types)) {
-								foreach($types as $type) {
-									if($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType)
-										$types = $type->getTypes();
-									else
-										$types = [$type];
-
-									if(is_null($rs->{$column['name']}) && $type->allowsNull()) { // is null and nullable
-										$propertyReflexion->setValue($object, $rs->{$column['name']});
-										break;
-									} else {
-										if($type->isBuiltin()) { // PHP builtin types
-											$propertyReflexion->setValue($object, $rs->{$column['name']});
+							if($type = $propertyReflexion->getType()) {
+								if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
+									foreach($types as $type) {
+										if(is_null($rs->{$column['name']}) && $type->allowsNull()) { // is null and nullable
+											$propertyReflexion->setValue($object, null);
 											break;
 										} else {
-											$propertyReflexion->setValue($object, match($type->getName()) {
-												'DateTime' => new \DateTime($rs->{$column['name']}),
-											});
-											break;
+											if($type->isBuiltin()) { // PHP builtin types
+												$propertyReflexion->setValue($object, $rs->{$column['name']});
+												break;
+											} else {
+												$propertyReflexion->setValue($object, match($type->getName()) {
+													'DateTime' => new \DateTime($rs->{$column['name']}),
+												});
+												break;
+											}
 										}
 									}
+								} else {
+									$propertyReflexion->setValue($object, $rs->{$column['name']});
 								}
-							} else {
-								$propertyReflexion->setValue($object, $rs->{$column['name']});
 							}
 						}
+					}
 
-						return [$rs->id, $object];
-					};
-
-					self::$schemas[$this->modelClassName] = $schema;
-					$this->schema = $schema;
-				} else {
-					throw new \Exception('Could not infer Schema from Model attributes.');
-				}
+					return [$rs->id, $object];
+				};
 			}
 
-			$this->schema = self::$schemas[$this->modelClassName];
+			$this->schema = $schema;
+			$this->query->from($this->schema->getTableName());
 		}
-
-		$this->query->from($this->schema->getTableName());
+		// else {
+		// 	throw new \Exception('Could not infer instanciator from Model attributes.');
+		// }
 	}
 
 	protected function _execute(\PDO $database): \PDOStatement
@@ -165,7 +123,7 @@ abstract class ModelStatement
 
 	public function or(...$where): static
 	{
-		$this->or();
+		$this->query->or();
 		$this->where($where);
 
 		return $this;

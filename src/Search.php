@@ -6,19 +6,13 @@ namespace Reflexive\Model;
 
 use Reflexive\Query;
 
-class Search extends ModelStatement
+class Search extends Pull
 {
-	public function __construct(string $modelClassName)
-	{
-		parent::__construct($modelClassName);
-		$this->query = new Query\Select();
-	}
-
 	public function execute(\PDO $database)
 	{
 		return new Collection(
 			parent::_execute($database),
-			self::$generators[$this->modelClassName]
+			self::$instanciators[$this->modelClassName]
 		);
 	}
 }

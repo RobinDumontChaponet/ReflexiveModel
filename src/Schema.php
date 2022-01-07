@@ -5,13 +5,27 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
+use ReflectionClass;
 
 class Schema implements \JsonSerializable
 {
 	/*
-	 * $columns[propertyName] = columnName;
+	 * $columns[propertyName] = [
+		'name' => string columnName,
+		'type' => string columnType,
+		'reference' => [
+			'tableName' => string,
+			'columnName' => string,
+			'modelClassName' => string,
+		],
+		'autoIncrement' => bool isAutoIncremented,
+	  ];
 	 */
 	protected array $columns = [];
+	// protected ?string $uIdColumnName;
+
+	// global caches ?
+	private static array $schemas = [];
 
 	public function __construct(
 		protected string $tableName,
@@ -39,6 +53,44 @@ class Schema implements \JsonSerializable
 			$this->columns[$key] = ['name' => $name];
 	}
 
+	public function getColumnType(int|string $key): ?string
+	{
+		if($this->hasColumn($key))
+			return $this->columns[$key]['type'] ?? null;
+
+		return null;
+	}
+
+	public function setColumnReference(int|string $key, string $tableName, string $columnName, string $modelClassName): void
+	{
+		$array = [
+			'tableName' => $tableName,
+			'columnName' => $columnName,
+			'modelClassName' => $modelClassName,
+		];
+
+		if($this->hasColumn($key))
+			$this->columns[$key]['reference'] = $array;
+		else
+			$this->columns[$key] = ['reference' => $array];
+	}
+
+	public function getColumnReference(int|string $key): ?array
+	{
+		if($this->hasColumn($key))
+			return $this->columns[$key]['reference'] ?? null;
+
+		return null;
+	}
+
+	public function setColumnType(int|string $key, string $type): void
+	{
+		if($this->hasColumn($key))
+			$this->columns[$key]['type'] = $type;
+		else
+			$this->columns[$key] = ['type' => $type];
+	}
+
 	public function setAutoIncrement(int|string $key, bool $state = true): void
 	{
 		if($this->hasColumn($key))
@@ -59,17 +111,85 @@ class Schema implements \JsonSerializable
 
 	public function __toString()
 	{
-		return static::class.' [ table: '.$this->tableName.' ]';
+		return json_encode($this, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT);
 	}
 
 	public function jsonSerialize(): mixed
 	{
 		return [
-			'table' => $this->tableName,
+			'tableName' => $this->tableName,
+			'columns' => $this->columns,
 		];
 	}
 
-	public function generator() {
-		// var_dump('generator');
+	public function instanciator() {
+		// var_dump('instanciator');
+	}
+
+	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
+	{
+		foreach($reflection->getProperties() as $propertyReflection) {
+			foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+				$modelAttribute = $attributeReflection->newInstance();
+
+				if(!empty($modelAttribute->columnName))
+					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->columnName);
+
+				if(!empty($modelAttribute->type))
+					$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
+				else {
+					// should infer type in DB from type in Model. So instanciator should be known here.
+				}
+
+				if(!empty($modelAttribute->arrayOf)) {
+					$referencedSchema = self::initFromAttributes($modelAttribute->arrayOf);
+
+					if(isset($referencedSchema)) {
+						$schema->setColumnReference($propertyReflection->getName(), $referencedSchema->getTableName(), 'id', $modelAttribute->arrayOf);
+					}
+				}
+
+				if(!empty($modelAttribute->autoIncrement)) {
+					$schema->setAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
+				}
+			}
+		}
+	}
+
+	public static function initFromAttributes(string $className): ?static
+	{
+		$schema = static::$schemas[$className] ?? null;
+
+		if(!isset($schema)) {
+			$classReflection = new ReflectionClass($className);
+			// get attributes of class
+			foreach($classReflection->getAttributes(ModelAttribute::class) as $attributeReflection) {
+				$attribute =  $attributeReflection->newInstance();
+				if(!empty($attribute->tableName)) {
+					$schema = new static($attribute->tableName);
+					break;
+				} else
+					throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No tableName.');
+			}
+
+			if(isset($schema)) {
+				// get attributes of properties
+				static::reflectPropertiesAttributes($classReflection, $schema);
+
+				// get attributes of traits properties
+				foreach($classReflection->getTraits() as $traitReflection) {
+					static::reflectPropertiesAttributes($traitReflection, $schema);
+				}
+
+				static::$schemas[$className] = $schema;
+			}
+		}
+
+		return $schema;
+	}
+
+	public static function getCache(): array
+	{
+		return self::$schemas;
 	}
 }
