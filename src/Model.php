@@ -46,7 +46,7 @@ abstract class Model implements \JsonSerializable
 	}
 
     public function __construct(
-		#[ModelProperty('id', autoIncrement: true)]
+		#[Column('id', isId: true, autoIncrement: true)]
 		protected int|string $id = -1,
 	)
 	{
@@ -83,7 +83,7 @@ abstract class Model implements \JsonSerializable
 	// 	return null;
 	// }
 
-	public function __call($name, $arguments)
+	public function __call(string $name, array $arguments): mixed
 	{
 		if(isset(static::$getters[static::class][$name])) {
 			return static::$getters[static::class][$name]();
@@ -93,7 +93,7 @@ abstract class Model implements \JsonSerializable
 		}
 	}
 
-	private static function errorHandler()
+	private static function errorHandler(): null|callable
 	{
 		return function($level, $message, $file, $line) {
 			if($file == __FILE__) {

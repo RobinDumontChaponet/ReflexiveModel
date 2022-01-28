@@ -22,7 +22,9 @@ class Schema implements \JsonSerializable
 	  ];
 	 */
 	protected array $columns = [];
-	// protected ?string $uIdColumnName;
+	protected ?string $uIdColumnName;
+
+	protected bool $complete = false;
 
 	// global caches ?
 	private static array $schemas = [];
@@ -51,6 +53,16 @@ class Schema implements \JsonSerializable
 			$this->columns[$key]['name'] = $name;
 		else
 			$this->columns[$key] = ['name' => $name];
+	}
+
+	public function getUIdColumnName(): ?string
+	{
+		return $this->uIdColumnName;
+	}
+
+	public function setUIdColumnName(string $name): void
+	{
+		$this->uIdColumnName = $name;
 	}
 
 	public function getColumnType(int|string $key): ?string
@@ -118,6 +130,7 @@ class Schema implements \JsonSerializable
 	{
 		return [
 			'tableName' => $this->tableName,
+			'uIdColumnName' => $this->uIdColumnName,
 			'columns' => $this->columns,
 		];
 	}
@@ -129,11 +142,12 @@ class Schema implements \JsonSerializable
 	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
 	{
 		foreach($reflection->getProperties() as $propertyReflection) {
-			foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+			// foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+			foreach($propertyReflection->getAttributes(Column::class) as $attributeReflection) {
 				$modelAttribute = $attributeReflection->newInstance();
 
-				if(!empty($modelAttribute->columnName))
-					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->columnName);
+				if(!empty($modelAttribute->name))
+					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->name);
 
 				if(!empty($modelAttribute->type))
 					$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
@@ -151,6 +165,10 @@ class Schema implements \JsonSerializable
 
 				if(!empty($modelAttribute->autoIncrement)) {
 					$schema->setAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
+				}
+
+				if(isset($modelAttribute->isId) && $modelAttribute->isId) {
+					$schema->setUIdColumnName($propertyReflection->getName());
 				}
 			}
 		}

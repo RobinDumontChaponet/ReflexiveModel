@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Reflexive\Core\Comparator;
-use Reflexive\Query;
 use ReflectionProperty;
 
 abstract class Push extends ModelStatement

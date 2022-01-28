@@ -7,7 +7,6 @@ namespace Reflexive\Model;
 use Reflexive\Core\Comparator;
 use Reflexive\Query;
 use ReflectionClass;
-use ReflectionNamedType;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
@@ -20,8 +19,12 @@ abstract class ModelStatement
 	protected Query\Composed $query;
 	protected ?Schema $schema;
 
+	protected array $referencedStatements = [];
+
 	// global caches ?
 	protected static array $instanciators = [];
+
+	private ?\PDO $database;
 
 	protected function __construct(
 		protected string $modelClassName,
@@ -34,6 +37,23 @@ abstract class ModelStatement
 
 			if(isset($schema) && !isset(self::$instanciators[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
+
+				// referenced models
+				foreach($schema->getColumns() as $propertyName => $column) {
+					if(isset($column['reference'])) {
+						$reference = $column['reference'];
+						// SELECT *
+						// FROM inGroup
+						// JOIN `User` ON User.id = inGroup.userId
+						// JOIN `Group` ON Group.id = inGroup.groupId;
+
+						// $search = new Search($reference['modelClassName']);
+						// $this->referencedStatements[$reference['modelClassName']] = [
+						// 	'statement' => $search,
+						// 	'collection' => null,
+						// ];
+					}
+				}
 
 				// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
 				self::$instanciators[$this->modelClassName] = function($rs) use ($classReflection, $schema) {
@@ -49,7 +69,7 @@ abstract class ModelStatement
 							if($type = $propertyReflexion->getType()) {
 								if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 									foreach($types as $type) {
-										if(is_null($rs->{$column['name']}) && $type->allowsNull()) { // is null and nullable
+										if($type->allowsNull() && (!isset($rs->{$column['name']}) || is_null($rs->{$column['name']}))) { // is null and nullable
 											$propertyReflexion->setValue($object, null);
 											break;
 										} else {
@@ -69,7 +89,20 @@ abstract class ModelStatement
 								}
 							}
 						}
+
+						if(isset($column['reference']) && isset($this->database)) {
+							$propertyReflexion = $classReflection->getProperty($propertyName);
+							$propertyReflexion->setAccessible(true);
+
+							// var_dump($this->referencedStatements[$column['reference']['modelClassName']]);
+
+							$collection = $column['reference']['modelClassName']::search($column['reference']['columnName'], Comparator::EQUAL, $rs->{$schema->getUIdColumnName()})->execute($this->database);
+
+							$propertyReflexion->setValue($object, $collection);
+						}
 					}
+
+					$_POST['count']++;
 
 					return [$rs->id, $object];
 				};
@@ -86,6 +119,14 @@ abstract class ModelStatement
 	protected function _execute(\PDO $database): \PDOStatement
 	{
 		$this->initSchema();
+
+		$this->database = $database;
+
+		// foreach($this->referencedStatements as $className => $statement) {
+		// 	var_dump($className);
+		// 	$this->referencedStatements[$className]['collection'] = $statement['statement']->execute($database);
+		// }
+
 		return $this->query->prepare($database);
 	}
 
@@ -116,7 +157,7 @@ abstract class ModelStatement
 	public function and(...$where): static
 	{
 		$this->query->and();
-		$this->where($where);
+		$this->where(...$where);
 
 		return $this;
 	}
@@ -124,13 +165,13 @@ abstract class ModelStatement
 	public function or(...$where): static
 	{
 		$this->query->or();
-		$this->where($where);
+		$this->where(...$where);
 
 		return $this;
 	}
 
 	public function __toString(): string
 	{
-		return $this->query;
+		return $this->query->__toString();
 	}
 }

@@ -16,7 +16,7 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 
 	private int $index;
 	private int|string|null $lastKey;
-	private mixed $lastOject;
+	// private mixed $lastOject;
 	private bool $valid;
 
 	// cached data
