@@ -85,6 +85,8 @@ abstract class Model implements \JsonSerializable
 
 	public function __call(string $name, array $arguments): mixed
 	{
+		$arguments; // shut up, IDEs
+
 		if(isset(static::$getters[static::class][$name])) {
 			return static::$getters[static::class][$name]();
 		} else {
@@ -96,6 +98,7 @@ abstract class Model implements \JsonSerializable
 	private static function errorHandler(): null|callable
 	{
 		return function($level, $message, $file, $line) {
+			$level; $line; // shut up, IDEs
 			if($file == __FILE__) {
 				$debug = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
 

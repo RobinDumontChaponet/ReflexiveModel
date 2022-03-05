@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Reflexive\Model;
+
+use Attribute;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
+class Reference
+{
+	public function __construct(
+		public readonly Cardinality $cardinality = Cardinality::OneToMany,
+		public readonly ?string $type = null,
+		public readonly bool $optional = true,
+		public readonly ?string $columnName = null,
+		public readonly ?string $foreignColumnName = null,
+		public readonly ?string $foreignTableName = null,
+		public readonly ?string $foreignRightTableName = null,
+	)
+	{}
+}

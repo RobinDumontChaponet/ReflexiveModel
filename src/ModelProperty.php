@@ -12,6 +12,7 @@ class ModelProperty
 	public function __construct(
 		public readonly bool|string $makeGetter = true,
 		public readonly bool|string $makeSetter = true,
+		public readonly ?string $arrayOf = null,
 	)
 	{}
 }

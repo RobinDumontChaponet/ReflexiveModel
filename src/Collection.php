@@ -10,6 +10,7 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 	public bool $cache = true;
 	public bool $autoExecute = true;
 	public bool $autoClose = true;
+	public bool $fetchAbsolute = false; // fetch using FETCH_ORI_ABS for lists. Only works when dbsDriver supports scrollable cursor.
 
 	// Internal counters
 	private int $count = 0;
@@ -23,13 +24,20 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 	private array $keys = [];
 	private array $objects = [];
 
+	// global cache ?
+	protected static array $collections = [];
+
 	// internal flags/state
 	private bool $exhausted = false;
 	private bool $reset = false;
+	private bool $isList = false;
 
 	public function __construct(
 		private \PDOStatement $statement,
 		private \Closure $generator,
+		private ?int $limit = null, // used to determine if is list
+		private int $offset = 0, // used to determine if is list
+		private ?\PDO $database = null, // used for subsequent queries if any
 	)
 	{
 		$this->init();
@@ -58,6 +66,8 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 		$result = $this->statement->execute($params);
 		$this->count = $this->statement->rowCount();
 
+		$this->isList = (0 === $this->offset && $this->limit == $this->count);
+
 		return $result;
 	}
 
@@ -69,42 +79,51 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 		return $this->lastObject;
 	}
 
-	private function fetch(): void
+	private function fetchCurrent(): void
 	{
 		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
 			$this->execute();
 		}
 
-		if($this->cache && isset($this->keys[$this->index])) {
-			$this->lastKey = $this->keys[$this->index];
-			$this->lastObject = $this->objects[$this->lastKey];
-		} else {
+		[$this->lastKey, $this->lastObject] = $this->fetch($this->index);
+
+		$this->valid = !empty($this->lastObject);
+	}
+
+	// fetch from statement or from cache, updates cache. Do not advance cursor.
+	private function fetch(int $index): array
+	{
+		if($this->cache && isset($this->keys[$index])) { // exists in cache
+			$key = $this->keys[$index];
+			return [$key, $this->objects[$key]];
+		} else { // not yet in cache
 			$rs = $this->statement->fetch(
 				\PDO::FETCH_OBJ,
 				\PDO::FETCH_ORI_ABS,
-				$this->index
+				$index
 			);
 
-			if(!empty($rs)) {
-				[$this->lastKey, $this->lastObject] = ($this->generator)($rs);
+			if(empty($rs)) {
+				return [null, null];
 			} else {
-				$this->lastKey = null;
-				$this->lastObject = null;
-			}
+				[$key, $object] = ($this->generator)($rs, $this->database);
 
-			if($this->cache) {
-				$this->keys[$this->index] = $this->lastKey;
-				$this->objects[$this->lastKey] = $this->lastObject;
+				if($this->cache) {
+					$this->keys[$index] = $key;
+					$this->objects[$key] = $object;
+				}
+
+				return [$key, $object];
 			}
 		}
 
-		$this->valid = !empty($this->lastObject);
+		return [null, null];
 	}
 
 	public function next(): void
 	{
 		$this->index++;
-		$this->fetch();
+		$this->fetchCurrent();
 	}
 
 	public function key(): mixed
@@ -127,7 +146,7 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 	public function rewind(): void
 	{
 		$this->index = 0;
-		$this->fetch();
+		$this->fetchCurrent();
 	}
 
 	/*
@@ -144,10 +163,27 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 			return $this->objects[$key];
 		}
 
-		if(!$this->exhausted) {
-			foreach($this as $v) {}
+		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
+			$this->execute();
+		}
 
-			return $this->offsetGet($key);
+		if($this->fetchAbsolute && $this->isList) {
+			[, $object] = $this->fetch($key-1);
+			return $object;
+		} else {
+			if(!$this->exhausted) {
+				for(
+					$i = (($this->isList && $key>=count($this->keys))? count($this->keys) : $this->offset);
+					$i <= ($this->isList ? $key : $this->limit ?? $this->count);
+					$i++
+				) {
+					[$k,] = $this->fetch($i);
+					if($k == $key)
+						break;
+				}
+
+				return $this->objects[$key];
+			}
 		}
 
 		return null;
@@ -179,6 +215,10 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 	 */
 	public function count(): int
 	{
+		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
+			$this->execute();
+		}
+
 		return $this->count;
 	}
 }

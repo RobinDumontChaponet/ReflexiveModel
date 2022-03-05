@@ -31,7 +31,7 @@ abstract class Push extends ModelStatement
 			if(is_bool($value))
 				$value = (int)$value;
 
-			$this->query->set($column['name'], $value);
+			$this->query->set($column['columnName'], $value);
 		}
 
 		$statement = $this->query->prepare($database);

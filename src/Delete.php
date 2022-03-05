@@ -6,7 +6,6 @@ namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
 use Reflexive\Query;
-use ReflectionProperty;
 
 class Delete extends ModelStatement
 {
@@ -21,7 +20,7 @@ class Delete extends ModelStatement
 
 	public function execute(\PDO $database)
 	{
-		$statement = parent::_execute($database);
+		$statement = parent::_prepare($database);
 		$statement->execute();
 	}
 }

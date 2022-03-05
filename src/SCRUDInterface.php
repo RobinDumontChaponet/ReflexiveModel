@@ -2,7 +2,7 @@
 
 namespace Reflexive\Model;
 
-use Query\Operator;
+use Reflexive\Query\Operator;
 
 interface SCRUDInterface
 {

@@ -16,7 +16,6 @@ class Column
 		public readonly ?string $type = null,
 		public readonly bool $isNullable = false,
 		public readonly bool $autoIncrement = false,
-		public readonly ?string $arrayOf = null,
 	)
 	{}
 }
@@ -29,6 +28,5 @@ class Column
 - type : type in DB ; Infer from PHP type if not set ;
 - isNullable : is nullable ;
 - autoIncrement : is autoIncremented in DB ;
-- arrayOf : is arrayOf in PHP ;
 
 */
