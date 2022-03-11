@@ -52,18 +52,40 @@ abstract class ModelStatement
 							if($type = $propertyReflexion->getType()) {
 								if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 									foreach($types as $type) {
-										if($type->allowsNull() && (!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']}))) { // is null and nullable
-											$propertyReflexion->setValue($object, null);
-											break;
-										} else {
-											if($type->isBuiltin()) { // PHP builtin types
-												$propertyReflexion->setValue($object, $rs->{$column['columnName']});
+										if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
+											if($type->allowsNull()) { // is nullable
+												$propertyReflexion->setValue($object, null);
 												break;
 											} else {
-												$propertyReflexion->setValue($object, match($type->getName()) {
-													'DateTime' => new \DateTime($rs->{$column['columnName']}),
-												});
+												throw new \TypeError('Property "'.$propertyName.'" of model "'.$this->modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
+											}
+										} else {
+											$value = $rs->{$column['columnName']};
+
+											if($type->isBuiltin()) { // PHP builtin types
+												$propertyReflexion->setValue($object, $value);
 												break;
+											} else {
+												$typeName = $type->getName();
+
+												if(is_a($typeName, 'object', true)) { // object
+													$propertyReflexion->setValue(
+														$object,
+														match($typeName) {
+															'DateTime' => new \DateTime($value),
+															default => new $typeName($value)
+														}
+													);
+													break;
+												} elseif(enum_exists($typeName)) { // PHP enum
+													var_dump($typeName::from($value));
+
+													$propertyReflexion->setValue(
+														$object,
+														$typeName::tryFrom($value)
+													);
+													break;
+												}
 											}
 										}
 									}
@@ -75,13 +97,19 @@ abstract class ModelStatement
 					}
 
 					foreach($schema->getReferences() as $propertyName => $reference) {
-						if(isset(Schema::getCache()[$reference['type']])) {
+						if($referencedSchema = Schema::getCache()[$reference['type']]) {
 							if(empty($database))
 								throw new \InvalidArgumentException('No database to use for subsequent queries.');
 							else {
-								if($reference['cardinality'] == Cardinality::ManyToMany) {
-									$propertyReflexion = $classReflection->getProperty($propertyName);
-									$propertyReflexion->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
+								switch($reference['cardinality']) {
+									case Cardinality::OneToMany:
+										$propertyReflexion = $classReflection->getProperty($propertyName);
+										$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									break;
+									case Cardinality::ManyToMany:
+										$propertyReflexion = $classReflection->getProperty($propertyName);
+										$propertyReflexion->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
+									break;
 								}
 							}
 						}
@@ -116,7 +144,7 @@ abstract class ModelStatement
 		return $this;
 	}
 
-	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool $value = null): static
+	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model $value = null): static
 	{
 		$this->initSchema();
 
@@ -126,7 +154,33 @@ abstract class ModelStatement
 
 			$this->query->where($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
 		} elseif($this->schema->hasReference($propertyName)) {
-			var_dump(__FILE__, __LINE__, $propertyName);
+			if(!is_object($value))
+				throw new \TypeError('Can only reference "'.$propertyName.'" with object, '.gettype($value).' given.');
+
+			$referencedSchema = Schema::getCache()[$value::class];
+			if(!isset($referencedSchema)) {
+				throw new \TypeError('Schema "'.$value::class.'" not set');
+			}
+
+			if($this->schema->hasReference($propertyName)) {
+				if($this->schema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
+					$this->query->join(
+						Query\Join::inner,
+						$this->schema->getReferenceForeignTableName($propertyName),
+						$this->schema->getReferenceForeignColumnName($propertyName),
+						Comparator::EQUAL,
+						$this->schema->getTableName(),
+						$this->schema->getUidColumnName(),
+					);
+					$this->query->and(
+						$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
+						$comparator,
+						$value->getId(),
+					);
+				}
+			} else {
+				throw new \TypeError('Reference "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+			}
 		} else {
 			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
 		}

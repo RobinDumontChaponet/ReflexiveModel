@@ -12,9 +12,9 @@ class Column
 	public function __construct(
 		public readonly ?string $name = null,
 		public readonly bool $isId = false,
-		public readonly bool $isUnique = false,
+		public readonly bool $unique = false,
 		public readonly ?string $type = null,
-		public readonly bool $isNullable = false,
+		public readonly bool $nullable = false,
 		public readonly bool $autoIncrement = false,
 	)
 	{}

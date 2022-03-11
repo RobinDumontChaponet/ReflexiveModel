@@ -47,7 +47,5 @@ abstract class Pull extends ModelStatement
 		}
 
 		return $this;
-
-		return $this;
 	}
 }
