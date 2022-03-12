@@ -19,7 +19,7 @@ class Schema implements \JsonSerializable
 	 */
 	protected array $columns = [];
 	protected array $columnNames = [];
-	protected ?string $uIdColumnName;
+	protected ?string $uIdColumnName = null;
 	/*
 	 * $references[propertyName] = [
 		 'tableName' => string,
@@ -298,10 +298,10 @@ class Schema implements \JsonSerializable
 		// var_dump('instanciator');
 	}
 
-	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
+	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		static::reflectColumnPropertiesAttributes($reflection, $schema);
-		static::reflectReferencePropertiesAttributes($reflection, $schema);
+		static::reflectReferencePropertiesAttributes($reflection, $schema, $className);
 	}
 
 	private static function reflectColumnPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
@@ -344,11 +344,14 @@ class Schema implements \JsonSerializable
 		}
 	}
 
-	private static function reflectReferencePropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
+	private static function reflectReferencePropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getProperties() as $propertyReflection) {
 			foreach($propertyReflection->getAttributes(Reference::class) as $attributeReflection) {
 				$modelAttribute = $attributeReflection->newInstance();
+
+				if($modelAttribute->type == $className)
+					continue;
 
 				if(!empty($modelAttribute->type)) {
 					$referencedSchema = self::initFromAttributes($modelAttribute->type);
@@ -414,7 +417,7 @@ class Schema implements \JsonSerializable
 
 						$schema->setReferenceType($propertyReflection->getName(), $modelAttribute->type);
 					} else {
-						throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists.');
+						throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists, from schema "'.$className.'"');
 					}
 				}
 			}
@@ -451,11 +454,11 @@ class Schema implements \JsonSerializable
 					$schema->useModelNames = $useModelNames;
 					// get attributes of traits properties
 					foreach($classReflection->getTraits() as $traitReflection) {
-						static::reflectPropertiesAttributes($traitReflection, $schema);
+						static::reflectPropertiesAttributes($traitReflection, $schema, $className);
 					}
 
 					// get attributes of properties
-					static::reflectPropertiesAttributes($classReflection, $schema);
+					static::reflectPropertiesAttributes($classReflection, $schema, $className);
 
 					foreach($schema->getReferences() as $key => $reference) {
 						$reference; // silence not used variable
