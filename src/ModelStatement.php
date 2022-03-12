@@ -31,11 +31,12 @@ abstract class ModelStatement
 	)
 	{}
 
-	protected function initSchema() {
-		if(!isset($this->schema)) {
-			$schema = Schema::initFromAttributes($this->modelClassName);
+	protected function initSchema(): void
+	{
+		$schema = $this->schema ?? Schema::initFromAttributes($this->modelClassName);
 
-			if(isset($schema) && !isset(self::$instanciators[$this->modelClassName])) {
+		if(isset($schema)) {
+			if(!isset(self::$instanciators[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
 
 				// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
@@ -78,8 +79,6 @@ abstract class ModelStatement
 													);
 													break;
 												} elseif(enum_exists($typeName)) { // PHP enum
-													var_dump($typeName::from($value));
-
 													$propertyReflexion->setValue(
 														$object,
 														$typeName::tryFrom($value)
@@ -123,10 +122,13 @@ abstract class ModelStatement
 
 			$this->schema = $schema;
 			$this->query->from($this->schema->getTableName());
+
+			return;
+		} else {
+			throw new \Exception('Could not infer schema from Model "'.$this->modelClassName.'" attributes.');
 		}
-		// else {
-		// 	throw new \Exception('Could not infer instanciator from Model attributes.');
-		// }
+
+		throw new \Exception('Could not infer instanciator from Model "'.$this->modelClassName.'" attributes.');
 	}
 
 	protected function _prepare(\PDO $database): \PDOStatement
