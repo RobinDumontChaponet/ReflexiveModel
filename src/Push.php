@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use ReflectionProperty;
+use Reflexive\Core\Comparator;
 
 abstract class Push extends ModelStatement
 {
@@ -19,26 +20,33 @@ abstract class Push extends ModelStatement
 	{
 		$this->initSchema();
 
-		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
-		foreach($this->schema->getColumns() as $propertyName => $column) {
-			if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || @$column['autoIncrement'])
-				continue;
-
-			$propertyReflexion = new ReflectionProperty($this->model, $propertyName);
-			$propertyReflexion->setAccessible(true);
-
-			$value = $propertyReflexion->getValue($this->model);
-			if(is_bool($value))
-				$value = (int)$value;
-
-			$this->query->set($column['columnName'], $value);
+		if(isset($this->schema)) {
+			$this->query->where($this->schema->getUIdColumnName(), Comparator::EQUAL, $this->model->getId());
 		}
 
-		$statement = $this->query->prepare($database);
-		$statement->execute();
+		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
 
-		$this->model->setId($database->lastInsertId());
+		if(!$this->model->ignoreModifiedProperties && !empty($modifiedPropertiesNames)) {
+			foreach($this->schema->getColumns() as $propertyName => $column) {
+				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || @$column['autoIncrement'])
+					continue;
 
-		$this->model->resetModifiedPropertiesNames();
+				$propertyReflexion = new ReflectionProperty($this->model, $propertyName);
+				$propertyReflexion->setAccessible(true);
+
+				$value = $propertyReflexion->getValue($this->model);
+				if(is_bool($value))
+					$value = (int)$value;
+
+				$this->query->set($column['columnName'], $value);
+			}
+
+			$statement = $this->query->prepare($database);
+			$statement->execute();
+
+			$this->model->setId($database->lastInsertId());
+
+			$this->model->resetModifiedPropertiesNames();
+		}
 	}
 }

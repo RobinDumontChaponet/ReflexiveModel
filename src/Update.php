@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Reflexive\Core\Comparator;
 use Reflexive\Query;
 
 class Update extends Push
@@ -13,6 +12,6 @@ class Update extends Push
 	{
 		parent::__construct($model);
 		$this->query = new Query\Update();
-		$this->where('id', Comparator::EQUAL, $model->getId());
+		// $this->where('id', Comparator::EQUAL, $model->getId());
 	}
 }
