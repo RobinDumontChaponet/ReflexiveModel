@@ -43,6 +43,29 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 		$this->init();
 	}
 
+	public function __sleep(): array
+	{
+		$this->cacheAll();
+
+		return [
+			'cache',
+			'autoExecute',
+			'autoClose',
+			'fetchAbsolute',
+			'count',
+			'index',
+			'lastKey',
+			'valid',
+			'keys',
+			'objects',
+			'exhausted',
+			'reset',
+			'isList',
+			'limit',
+			'offset',
+		];
+	}
+
 	private function init(): void
 	{
 		$this->count = $this->statement->rowCount();
@@ -118,6 +141,19 @@ class Collection implements \Iterator, \ArrayAccess, \Countable
 		}
 
 		return [null, null];
+	}
+
+	private function cacheAll(): void
+	{
+		if($this->cache && $this->exhausted)
+			return;
+		else {
+			$this->cache = true;
+			foreach($this as $k => $v) {
+				$k;
+				$v;
+			}
+		}
 	}
 
 	public function next(): void
