@@ -148,14 +148,8 @@ abstract class Model implements \JsonSerializable
 		return new Delete($model);
 	}
 
-	public static function count(array $columns = ['*']): ?Query\Select
+	public static function count(): ModelStatement
 	{
-		$schema = Schema::initFromAttributes(static::class);
-		if(isset($schema)) {
-			$query = new Query\Select(['c' => 'COUNT(' . implode(', ', $columns) . ')']);
-			$query->from($schema->getTableName());
-		}
-
-		return $query ?? null;
+		return new Count(static::class);
 	}
 }
