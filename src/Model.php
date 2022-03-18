@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
-use Reflexive\Query;
 use ReflectionClass;
 
 abstract class Model implements \JsonSerializable
