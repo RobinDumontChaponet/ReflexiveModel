@@ -12,15 +12,21 @@
 		}
 	],
 	"require": {
-		"php":                  "~8.1.0",
+		"php": "~8.1.0",
 		"composer-runtime-api": "^2.0.0",
 		"reflexive/core": "dev-master as 0.1",
 		"reflexive/query": "dev-master as 0.1"
+	},
+	"require-dev": {
+		"composer/composer": "^2"
 	},
 	"autoload": {
 		"psr-4": {
 			"Reflexive\\Model\\": "src/"
 		}
+	},
+	"scripts": {
+		"export": "Reflexive\\Model\\Schema\\ScriptHandler::export"
 	},
     "repositories": [
         {

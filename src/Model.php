@@ -46,7 +46,7 @@ abstract class Model implements \JsonSerializable
 
     public function __construct(
 		#[Column('id', isId: true, autoIncrement: true)]
-		protected int|string $id = -1,
+		protected int $id = -1,
 	)
 	{
 		static::initModelAttributes();

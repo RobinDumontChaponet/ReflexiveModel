@@ -6,6 +6,11 @@ namespace Reflexive\Model;
 
 use ReflectionClass;
 
+use ReflectionUnionType;
+use ReflectionIntersectionType;
+
+use Composer\Script\Event;
+
 class Schema implements \JsonSerializable
 {
 	public bool $useModelNames = true;
@@ -32,6 +37,7 @@ class Schema implements \JsonSerializable
 	protected bool $complete = false;
 
 	// global caches ?
+	// private static bool $cache = true;
 	private static array $schemas = [];
 
 	public function __construct(
@@ -50,7 +56,7 @@ class Schema implements \JsonSerializable
 
 	public function getColumnNames(): array
 	{
-		return $this->columnNames;
+		return array_map(fn($value): string => $this->tableName.$value, $this->columnNames);
 	}
 
 	public function getColumnName(int|string $key): ?string
@@ -62,12 +68,12 @@ class Schema implements \JsonSerializable
 	}
 	public function setColumnName(int|string $key, string $name): void
 	{
-		if($this->hasColumn($key))
+		if($this->hasColumn($key)) {
 			$this->columns[$key]['columnName'] = $name;
-		else
+		} else {
 			$this->columns[$key] = ['columnName' => $name];
-
-		$this->columnNames[] = (!empty($this->tableName)? $this->tableName.'.':'').$name;
+			$this->columnNames[] = $name;
+		}
 	}
 
 	public function getUIdColumnName(): ?string
@@ -249,7 +255,14 @@ class Schema implements \JsonSerializable
 			$this->columns[$key] = ['nullable' => $unique];
 	}
 
-	public function setAutoIncrement(int|string $key, bool $state = true): void
+	public function isColumnAutoIncremented(int|string $key): ?bool
+	{
+		if($this->hasColumn($key))
+			return $this->columns[$key]['autoIncrement'] ?? null;
+
+		return null;
+	}
+	public function setColumnAutoIncrement(int|string $key, bool $state = true): void
 	{
 		if($this->hasColumn($key))
 			$this->columns[$key]['autoIncrement'] = $state;
@@ -300,11 +313,11 @@ class Schema implements \JsonSerializable
 
 	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
-		static::reflectColumnPropertiesAttributes($reflection, $schema);
+		static::reflectColumnPropertiesAttributes($reflection, $schema, $className);
 		static::reflectReferencePropertiesAttributes($reflection, $schema, $className);
 	}
 
-	private static function reflectColumnPropertiesAttributes(ReflectionClass $reflection, Schema &$schema): void
+	private static function reflectColumnPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getProperties() as $propertyReflection) {
 			foreach($propertyReflection->getAttributes(Column::class) as $attributeReflection) {
@@ -318,7 +331,63 @@ class Schema implements \JsonSerializable
 				if(!empty($modelAttribute->type))
 					$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
 				else {
-					// should infer type in DB from type in Model. So instanciator should be known here.
+					// should infer type in DB from type in Model. So instanciator should be known here. Or should it
+					if($type = $propertyReflection->getType()) {
+						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
+							foreach($types as $type) {
+								// var_dump($type->getName());
+
+								if($type->isBuiltin()) { // PHP builtin types
+									$schema->setColumnType(
+										$propertyReflection->getName(),
+										match($type->getName()) {
+											'int' => 'INT',
+											'bool' => 'TINYINT(1)',
+											'double', 'float' => 'DOUBLE',
+											'string' => 'TEXT',
+											default => 'TEXT'
+									});
+									break;
+								} else {
+									$typeName = $type->getName();
+
+									// if($typeName == 'Reflexive\Model\Collection') {
+									// 	break;
+									// }
+
+									if(class_exists($typeName)) { // object
+										foreach($propertyReflection->getAttributes(Reference::class) as $referenceReflection) {
+											static::reflectReferencePropertiesAttribute($referenceReflection->newInstance(), $schema, $propertyReflection->getName());
+										}
+										if($schema->hasReference($propertyReflection->getName())) {
+											$schema->setColumnType(
+												$propertyReflection->getName(),
+												'INT'
+											);
+											break;
+										} elseif(enum_exists($typeName)) { // PHP enum
+											$schema->setColumnType(
+												$propertyReflection->getName(),
+												'ENUM('.implode(',', array_map(fn($case) => $case->value, $typeName::cases())).')'
+											);
+											break;
+										} else {
+											$schema->setColumnType(
+												$propertyReflection->getName(),
+												match($typeName) {
+													'DateTime' => 'DATETIME',
+													default => ''
+												}
+											);
+											break;
+										}
+									}
+								}
+							}
+						} else {
+							var_dump('NO TYPE ?');
+						}
+					}
 				}
 
 				if(!empty($modelAttribute->nullable))
@@ -334,7 +403,7 @@ class Schema implements \JsonSerializable
 				}
 
 				if(!empty($modelAttribute->autoIncrement)) {
-					$schema->setAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
+					$schema->setColumnAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
 				}
 
 				if(isset($modelAttribute->isId) && $modelAttribute->isId) {
@@ -353,74 +422,81 @@ class Schema implements \JsonSerializable
 				if($modelAttribute->type == $className)
 					continue;
 
-				if(!empty($modelAttribute->type)) {
-					$referencedSchema = self::initFromAttributes($modelAttribute->type);
+				if(empty($modelAttribute->type))
+					throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists, from schema "'.$className.'"');
 
-					if(isset($referencedSchema)) {
-						$schema->setReferenceCardinality($propertyReflection->getName(), $modelAttribute->cardinality);
-
-						if(!empty($modelAttribute->nullable))
-							$schema->setReferenceNullable($propertyReflection->getName(), $modelAttribute->nullable);
-						else {
-							// should infer nullable from ?.
-						}
-
-						$schema->setReferenceColumnName($propertyReflection->getName(),  match($modelAttribute->cardinality) {
-							Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyReflection->getName(),
-							Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyReflection->getName(),
-							Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnName() ?? 'id',
-						});
-
-						switch($modelAttribute->cardinality) {
-							case Cardinality::OneToOne:
-							case Cardinality::OneToMany:
-								if(!empty($modelAttribute->foreignTableName)) {
-									$schema->setReferenceForeignTableName(
-										$propertyReflection->getName(),
-										$modelAttribute->foreignTableName
-									);
-								}
-							break;
-							case Cardinality::ManyToMany:
-								$schema->setReferenceForeignTableName(
-									$propertyReflection->getName(),
-									$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'In'.$referencedSchema->getTableName()
-								);
-							break;
-						}
-
-						switch($modelAttribute->cardinality) {
-							case Cardinality::OneToOne:
-								$schema->setReferenceForeignColumnName(
-									$propertyReflection->getName(),
-									$schema->getReferenceColumnName($propertyReflection->getName())
-								);
-							break;
-							case Cardinality::OneToMany:
-								if(!empty($modelAttribute->foreignColumnName)) {
-									$schema->setReferenceForeignColumnName(
-										$propertyReflection->getName(),
-										$modelAttribute->foreignColumnName
-									);
-								}
-							break;
-							case Cardinality::ManyToMany:
-								$schema->setReferenceForeignColumnName(
-									$propertyReflection->getName(),
-									$modelAttribute->foreignColumnName ?? lcfirst($schema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyReflection->getName()))
-								);
-							break;
-						}
-
-						if($modelAttribute->cardinality == Cardinality::ManyToMany)
-							$schema->setReferenceForeignRightColumnName($propertyReflection->getName(), $modelAttribute->foreignRightColumnName ?? $modelAttribute->foreignColumnName ?? lcfirst($referencedSchema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyReflection->getName())));
-
-						$schema->setReferenceType($propertyReflection->getName(), $modelAttribute->type);
-					} else {
-						throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists, from schema "'.$className.'"');
-					}
-				}
+				static::reflectReferencePropertiesAttribute($modelAttribute, $schema, $propertyReflection->getName());
 			}
+		}
+	}
+
+	private static function reflectReferencePropertiesAttribute(Reference $modelAttribute, Schema &$schema, string $propertyName): void
+	{
+		if($schema->hasReference($propertyName))
+			return;
+
+		$referencedSchema = self::initFromAttributes($modelAttribute->type);
+
+		if(isset($referencedSchema)) {
+			$schema->setReferenceCardinality($propertyName, $modelAttribute->cardinality);
+
+			if(!empty($modelAttribute->nullable))
+				$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
+			else {
+				// should infer nullable from ?.
+			}
+
+			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
+				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
+				Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyName,
+				Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnName() ?? 'id',
+			});
+
+			switch($modelAttribute->cardinality) {
+				case Cardinality::OneToOne:
+				case Cardinality::OneToMany:
+					if(!empty($modelAttribute->foreignTableName)) {
+						$schema->setReferenceForeignTableName(
+							$propertyName,
+							$modelAttribute->foreignTableName
+						);
+					}
+				break;
+				case Cardinality::ManyToMany:
+					$schema->setReferenceForeignTableName(
+						$propertyName,
+						$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'In'.$referencedSchema->getTableName()
+					);
+				break;
+			}
+
+			switch($modelAttribute->cardinality) {
+				case Cardinality::OneToOne:
+					$schema->setReferenceForeignColumnName(
+						$propertyName,
+						$schema->getReferenceColumnName($propertyName)
+					);
+				break;
+				case Cardinality::OneToMany:
+					if(!empty($modelAttribute->foreignColumnName)) {
+						$schema->setReferenceForeignColumnName(
+							$propertyName,
+							$modelAttribute->foreignColumnName
+						);
+					}
+				break;
+				case Cardinality::ManyToMany:
+					$schema->setReferenceForeignColumnName(
+						$propertyName,
+						$modelAttribute->foreignColumnName ?? lcfirst($schema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyName))
+					);
+				break;
+			}
+
+			if($modelAttribute->cardinality == Cardinality::ManyToMany)
+				$schema->setReferenceForeignRightColumnName($propertyName, $modelAttribute->foreignRightColumnName ?? $modelAttribute->foreignColumnName ?? lcfirst($referencedSchema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyName)));
+
+			$schema->setReferenceType($propertyName, $modelAttribute->type);
 		}
 	}
 
@@ -445,9 +521,10 @@ class Schema implements \JsonSerializable
 					$attribute =  $attributeReflection->newInstance();
 					if(!empty($attribute->tableName) || $useModelNames) {
 						$schema = new static($attribute->tableName ?? $className);
+						static::$schemas[$className] = $schema;
 						break;
 					} else
-						throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No tableName.');
+						throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No table name.');
 				}
 
 				if(isset($schema)) {
@@ -470,7 +547,9 @@ class Schema implements \JsonSerializable
 						}
 					}
 
+					$schema->complete();
 					static::$schemas[$className] = $schema;
+					return $schema;
 				}
 			} catch (\ReflectionException $e) {
 				throw new \InvalidArgumentException('Could not infer Schema from Model attributes. Reflection failed.', previous: $e);
@@ -480,8 +559,65 @@ class Schema implements \JsonSerializable
 		return $schema;
 	}
 
+	public function complete(): void
+	{
+		$this->complete = true;
+	}
+
 	public static function getCache(): array
 	{
 		return self::$schemas;
+	}
+
+	public function dumpSQL(): string
+	{
+		$str = 'CREATE TABLE '. $this->getTableName() .' (';
+
+		foreach($this->columnNames as $columnName) {
+			$str.= '`'. $columnName .'` '. $this->getColumnType($columnName) . ($this->isColumnNullable($columnName)?'':' NOT NULL') . ($this->isColumnAutoIncremented($columnName)?' AUTO_INCREMENT':'') .', ';
+		}
+
+		if($primaryColumnName = $this->getUIdColumnName())
+			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`)';
+
+		return $str.')';
+	}
+
+	public static function export(Event $event)
+	{
+		$io = $event->getIO();
+		// $extra = $event->getComposer()->getPackage()->getExtra();
+
+		$classNames = [];
+
+		$classLoader = require('vendor/autoload.php');
+		if($classLoader->isClassMapAuthoritative()) {
+			$io->write('ClassMap is authoritative, using generated classMap', true, $io::VERBOSE);
+
+			$classNames = array_keys($classLoader->getClassMap());
+		} else {
+			$io->write('Using composer autoload with temporary classMap', true, $io::VERBOSE);
+			foreach($event->getComposer()->getPackage()->getAutoload() as $type => $autoLoad) {
+				$io->write('Checking '.$type.' autoload', true, $io::VERBOSE);
+				foreach($autoLoad as $nameSpace => $filePath) {
+					$io->write('Checking in '.$filePath.' for nameSpace "'.$nameSpace.'"', true, $io::VERBOSE);
+
+					$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
+					foreach($classMap as $className => $classPath) {
+						$io->write('Loaded '.$className.' in '.$classPath, true, $io::VERY_VERBOSE);
+						$classNames[] = $className;
+					}
+				}
+			}
+		}
+
+		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
+
+		foreach($classNames as $className) {
+			$io->writeRaw(self::initFromAttributes($className)?->dumpSQL(), true);
+			$io->writeRaw('', true);
+		}
+
+		// $io->writeRaw(json_encode(self::getCache(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT), true);
 	}
 }
