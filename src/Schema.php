@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use ReflectionClass;
-
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
@@ -331,11 +330,13 @@ class Schema implements \JsonSerializable
 				if(!empty($modelAttribute->type))
 					$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
 				else {
-					// should infer type in DB from type in Model. So instanciator should be known here. Or should it
+					// should infer type in DB from type in Model. So instanciator should be known here. Or should it ?
 					if($type = $propertyReflection->getType()) {
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								// var_dump($type->getName());
+
+								$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
 
 								if($type->isBuiltin()) { // PHP builtin types
 									$schema->setColumnType(
@@ -392,9 +393,6 @@ class Schema implements \JsonSerializable
 
 				if(!empty($modelAttribute->nullable))
 					$schema->setColumnNullable($propertyReflection->getName(), $modelAttribute->nullable);
-				else {
-					// should infer nullable from type.
-				}
 
 				if(!empty($modelAttribute->unique))
 					$schema->setColumnUnique($propertyReflection->getName(), $modelAttribute->unique);

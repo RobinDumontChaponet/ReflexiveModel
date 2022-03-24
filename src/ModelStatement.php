@@ -69,19 +69,19 @@ abstract class ModelStatement
 											} else {
 												$typeName = $type->getName();
 
-												if(is_a($typeName, 'object', true)) { // object
+												if(enum_exists($typeName)) { // PHP enum
+													$propertyReflexion->setValue(
+														$object,
+														$typeName::tryFrom($value)
+													);
+													break;
+												} elseif(class_exists($typeName, true)) { // object
 													$propertyReflexion->setValue(
 														$object,
 														match($typeName) {
 															'DateTime' => new \DateTime($value),
 															default => new $typeName($value)
 														}
-													);
-													break;
-												} elseif(enum_exists($typeName)) { // PHP enum
-													$propertyReflexion->setValue(
-														$object,
-														$typeName::tryFrom($value)
 													);
 													break;
 												}

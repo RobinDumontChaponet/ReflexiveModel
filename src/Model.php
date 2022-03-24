@@ -14,6 +14,7 @@ abstract class Model implements \JsonSerializable
 
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
+	public bool $updateUnmodified = false;
 
 	public function getModifiedPropertiesNames(): array
 	{
