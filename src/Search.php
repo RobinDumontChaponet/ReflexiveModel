@@ -16,7 +16,7 @@ class Search extends Pull
 			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnName());
 		}
 
-		return new Collection(
+		return new ModelCollection(
 			$this->query->prepare($database),
 			self::$instanciators[$this->modelClassName],
 			$this->query->getLimit(),

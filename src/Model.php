@@ -18,7 +18,7 @@ abstract class Model implements \JsonSerializable
 
 	public function getModifiedPropertiesNames(): array
 	{
-		return $this->modifiedProperties;
+		return array_unique($this->modifiedProperties);
 	}
 
 	public function resetModifiedPropertiesNames(): void
