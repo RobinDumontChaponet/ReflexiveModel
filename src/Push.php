@@ -22,8 +22,6 @@ abstract class Push extends ModelStatement
 		$statement = $this->query->prepare($database);
 		$statement->execute();
 
-		$this->model->setId((int)$database->lastInsertId());
-
 		$this->model->resetModifiedPropertiesNames();
 	}
 }

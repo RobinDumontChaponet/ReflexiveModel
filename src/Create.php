@@ -15,4 +15,11 @@ class Create extends Push
 		parent::__construct($model);
 		$this->query = new Query\Insert();
 	}
+
+	public function execute(\PDO $database)
+	{
+		parent::execute($database);
+
+		$this->model->setId((int)$database->lastInsertId());
+	}
 }
