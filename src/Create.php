@@ -11,9 +11,9 @@ class Create extends Push
 	public function __construct(Model &$model)
 	{
 		$model->ignoreModifiedProperties = true;
+		$this->query = new Query\Insert();
 
 		parent::__construct($model);
-		$this->query = new Query\Insert();
 	}
 
 	public function execute(\PDO $database)
