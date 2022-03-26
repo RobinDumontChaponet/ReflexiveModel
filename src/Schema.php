@@ -71,7 +71,7 @@ class Schema implements \JsonSerializable
 			$this->columns[$key]['columnName'] = $name;
 		} else {
 			$this->columns[$key] = ['columnName' => $name];
-			$this->columnNames[] = $name;
+			$this->columnNames[$key] = $name;
 		}
 	}
 
@@ -82,6 +82,11 @@ class Schema implements \JsonSerializable
 	public function setUIdColumnName(string $name): void
 	{
 		$this->uIdColumnName = $name;
+	}
+
+	public function getUIdColumnType(): ?string
+	{
+		return $this->getColumnType($this->uIdColumnName);
 	}
 
 	public function hasReference(int|string $key): bool
@@ -213,6 +218,11 @@ class Schema implements \JsonSerializable
 	{
 		if($this->hasColumn($key))
 			return $this->columns[$key]['type'] ?? null;
+		elseif($this->hasReference($key)) {
+			return self::initFromAttributes($this->references[$key]['type'])->getUIdColumnType();
+		}
+
+		// var_dump($this->references);
 
 		return null;
 	}
@@ -571,8 +581,10 @@ class Schema implements \JsonSerializable
 	{
 		$str = 'CREATE TABLE '. $this->getTableName() .' (';
 
-		foreach($this->columnNames as $columnName) {
-			$str.= '`'. $columnName .'` '. $this->getColumnType($columnName) . ($this->isColumnNullable($columnName)?'':' NOT NULL') . ($this->isColumnAutoIncremented($columnName)?' AUTO_INCREMENT':'') .', ';
+		$columns = array_flip($this->columnNames);
+
+		foreach($columns as $columnName => $propertyName) {
+			$str.= '`'. $columnName .'` '. $this->getColumnType($propertyName) . ($this->isColumnNullable($propertyName)?'':' NOT NULL') . ($this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'') .', ';
 		}
 
 		if($primaryColumnName = $this->getUIdColumnName())
