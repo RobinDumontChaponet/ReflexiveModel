@@ -15,17 +15,20 @@ class Schema implements \JsonSerializable
 	public bool $useModelNames = true;
 
 	/*
-	 * $columns[propertyName] = [
-		'columnName' => string columnName,
-		'type' => string columnType,
-		'autoIncrement' => bool isAutoIncremented,
+	 * $columns[string propertyName] = [
+		'columnName' => string,
+		'type' => string,
+		'autoIncrement' => bool,
 	  ];
 	 */
 	protected array $columns = [];
+	/*
+	 * $columnNames[string propertyName] = string columnName;
+	 */
 	protected array $columnNames = [];
 	protected ?string $uIdColumnName = null;
 	/*
-	 * $references[propertyName] = [
+	 * $references[string propertyName] = [
 		 'tableName' => string,
 		 'columnName' => string,
 		 'modelClassName' => string,
