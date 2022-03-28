@@ -18,8 +18,11 @@ class Create extends Push
 
 	public function execute(\PDO $database)
 	{
-		parent::execute($database);
+		$execute = parent::execute($database);
 
-		$this->model->setId((int)$database->lastInsertId());
+		if($execute)
+			$this->model->setId((int)$database->lastInsertId());
+
+		return $execute;
 	}
 }

@@ -109,13 +109,7 @@ abstract class Push extends ModelStatement
 
 	public function execute(\PDO $database)
 	{
-		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
-		if(!$this->model->updateUnmodified && empty($modifiedPropertiesNames))
-			return false;
-
 		$statement = $this->query->prepare($database);
-		$statement->execute();
-
-		$this->model->resetModifiedPropertiesNames();
+		return $statement->execute();
 	}
 }

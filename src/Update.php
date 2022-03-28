@@ -20,4 +20,20 @@ class Update extends Push
 			$this->query->where($this->schema->getUIdColumnName(), Comparator::EQUAL, $this->model->getId());
 		}
 	}
+
+	public function execute(\PDO $database)
+	{
+		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
+		if(!$this->model->updateUnmodified && empty($modifiedPropertiesNames))
+			return false;
+
+		$execute = parent::execute($database);
+
+		if($execute)
+			$this->model->resetModifiedPropertiesNames();
+
+		echo $this->query;
+
+		return $execute;
+	}
 }
