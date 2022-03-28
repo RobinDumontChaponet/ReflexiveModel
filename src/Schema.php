@@ -593,7 +593,7 @@ class Schema implements \JsonSerializable
 		if($primaryColumnName = $this->getUIdColumnName())
 			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`)';
 
-		return $str.')';
+		return $str.'); ';
 	}
 
 	public static function export(Event $event)
@@ -627,8 +627,12 @@ class Schema implements \JsonSerializable
 		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
 
 		foreach($classNames as $className) {
-			$io->writeRaw(self::initFromAttributes($className)?->dumpSQL(), true);
-			$io->writeRaw('', true);
+			$str = self::initFromAttributes($className)?->dumpSQL();
+
+			if(!empty($str)) {
+				$io->writeRaw($str, true);
+				$io->writeRaw('', true);
+			}
 		}
 
 		// $io->writeRaw(json_encode(self::getCache(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT), true);
