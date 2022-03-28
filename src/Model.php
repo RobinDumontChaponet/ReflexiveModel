@@ -10,7 +10,8 @@ use ReflectionClass;
 abstract class Model implements \JsonSerializable
 {
 	protected static array $getters = [];
-	protected static array $attributed = [];
+	protected static array $setters = [];
+	protected static array $attributedProperties = [];
 
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
@@ -28,20 +29,25 @@ abstract class Model implements \JsonSerializable
 
 	public static function initModelAttributes(): void
 	{
-		if(!isset(self::$attributed[static::class])) {
+		if(!isset(self::$attributedProperties[static::class])) {
 			$classReflection = new ReflectionClass(static::class);
 
+			self::$attributedProperties[static::class] = [];
 			// get attributes of properties
 			foreach($classReflection->getProperties() as $propertyReflection) {
-				foreach($propertyReflection->getAttributes(ModelProperty::class) as $attributeReflection) {
+				foreach($propertyReflection->getAttributes(Property::class) as $attributeReflection) {
 					$modelAttribute = $attributeReflection->newInstance();
+
+					if($propertyReflection->isProtected())
+						self::$attributedProperties[static::class][$propertyReflection->getName()] = $modelAttribute->readonly;
 
 					if(!empty($modelAttribute->makeGetter))
 						static::$getters[static::class][is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
+
+					if(!empty($modelAttribute->makeSetter))
+						static::$setters[static::class][is_string($modelAttribute->makeSetter)? $modelAttribute->makeSetter : 'set'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
 				}
 			}
-
-			self::$attributed[static::class] = true;
 		}
 	}
 
@@ -75,13 +81,34 @@ abstract class Model implements \JsonSerializable
         ];
     }
 
-	// function __get(string $name): mixed
-	// {
-	// 	if (array_key_exists($name, $this->model_data)) {
-	// 		return $this->model_data[$name];
-	// 	}
-	// 	return null;
-	// }
+	function __get(string $name): mixed
+	{
+		if(isset(static::$attributedProperties[static::class][$name])) {
+			return $this->{$name};
+		}
+
+		set_error_handler(self::errorHandler());
+		trigger_error('Access to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
+
+		return null;
+	}
+
+	public function __set($name, $value)
+	{
+		if(isset(static::$attributedProperties[static::class][$name])) {
+			if(static::$attributedProperties[static::class][$name])
+				$this->{$name} = $value;
+			else {
+				set_error_handler(self::errorHandler());
+				trigger_error(static::class.'::$'.$name.' is readonly', E_USER_ERROR);
+			}
+		}
+	}
+
+	public function __isset($name)
+	{
+		return isset(static::$attributedProperties[static::class][$name]) && isset($this->{$name});
+	}
 
 	public function __call(string $name, array $arguments): mixed
 	{

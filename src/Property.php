@@ -7,12 +7,13 @@ namespace Reflexive\Model;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_PROPERTY)]
-class ModelProperty
+class Property
 {
 	public function __construct(
 		public readonly bool|string $makeGetter = true,
 		public readonly bool|string $makeSetter = true,
-		public readonly ?string $arrayOf = null,
+		public readonly ?int $maxLength = null,
+		public readonly bool $readonly = false,
 	)
 	{}
 }
