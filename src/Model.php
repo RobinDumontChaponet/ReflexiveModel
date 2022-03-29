@@ -11,11 +11,18 @@ abstract class Model implements \JsonSerializable
 {
 	protected static array $getters = [];
 	protected static array $setters = [];
+	protected static array $lengths = [];
 	protected static array $attributedProperties = [];
 
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
 	public bool $updateUnmodified = false;
+
+	public static function getPropertyMaxLength(string $className, string $propertyName): int
+	{
+		// var_dump(self::$lengths, $className, $propertyName);
+		return self::$lengths[$className][$propertyName] ?? 0;
+	}
 
 	public function getModifiedPropertiesNames(): array
 	{
@@ -41,6 +48,9 @@ abstract class Model implements \JsonSerializable
 					if($propertyReflection->isProtected())
 						self::$attributedProperties[static::class][$propertyReflection->getName()] = $modelAttribute->readonly;
 
+					if($modelAttribute->maxLength)
+						static::$lengths[static::class][$propertyReflection->getName()] = $modelAttribute->maxLength;
+
 					if(!empty($modelAttribute->makeGetter))
 						static::$getters[static::class][is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
 
@@ -52,7 +62,7 @@ abstract class Model implements \JsonSerializable
 	}
 
     public function __construct(
-		#[Column('id', isId: true, autoIncrement: true)]
+		#[Column('id', isId: true, type: 'BIGINT(20) UNSIGNED', autoIncrement: true)]
 		protected int $id = -1,
 	)
 	{

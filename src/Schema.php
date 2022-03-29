@@ -225,8 +225,6 @@ class Schema implements \JsonSerializable
 			return self::initFromAttributes($this->references[$key]['type'])->getUIdColumnType();
 		}
 
-		// var_dump($this->references);
-
 		return null;
 	}
 	public function setColumnType(int|string $key, string $type): void
@@ -240,16 +238,40 @@ class Schema implements \JsonSerializable
 	public function isColumnNullable(int|string $key): ?bool
 	{
 		if($this->hasColumn($key))
-			return $this->columns[$key]['nullable'] ?? null;
+			return $this->columns[$key]['nullable'] ?? false;
 
 		return null;
 	}
 	public function setColumnNullable(int|string $key, bool $nullable = true): void
 	{
-		if($this->hasColumn($key))
+		if($this->hasColumn($key)) {
 			$this->columns[$key]['nullable'] = $nullable;
-		else
+		} else {
 			$this->columns[$key] = ['nullable' => $nullable];
+		}
+	}
+
+	public function hasColumnDefaultValue(int|string $key): ?bool
+	{
+		if($this->hasColumn($key))
+			return isset($this->columns[$key]['defaultValue']);
+
+		return null;
+	}
+	public function getColumnDefaultValue(int|string $key): mixed
+	{
+		if($this->hasColumn($key))
+			return $this->columns[$key]['defaultValue'] ?? null;
+
+		return null;
+	}
+	public function setColumnDefaultValue(int|string $key, mixed $defaultValue): void
+	{
+		if($this->hasColumn($key)) {
+			$this->columns[$key]['defaultValue'] = $defaultValue;
+		} else {
+			$this->columns[$key] = ['defaultValue' => $defaultValue];
+		}
 	}
 
 	public function isColumnUnique(int|string $key): ?bool
@@ -264,7 +286,7 @@ class Schema implements \JsonSerializable
 		if($this->hasColumn($key))
 			$this->columns[$key]['unique'] = $unique;
 		else
-			$this->columns[$key] = ['nullable' => $unique];
+			$this->columns[$key] = ['unique' => $unique];
 	}
 
 	public function isColumnAutoIncremented(int|string $key): ?bool
@@ -347,18 +369,20 @@ class Schema implements \JsonSerializable
 					if($type = $propertyReflection->getType()) {
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
-								// var_dump($type->getName());
-
 								$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
+								$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 
 								if($type->isBuiltin()) { // PHP builtin types
+									$className::initModelAttributes();
+									$maxLength = Model::getPropertyMaxLength($className, $propertyReflection->getName());
+
 									$schema->setColumnType(
 										$propertyReflection->getName(),
 										match($type->getName()) {
-											'int' => 'INT',
+											'int' => $maxLength ? 'INT('.$maxLength.')' :'INT',
 											'bool' => 'TINYINT(1)',
 											'double', 'float' => 'DOUBLE',
-											'string' => 'TEXT',
+											'string' => $maxLength ? 'VARCHAR('.$maxLength.')' :'TEXT',
 											default => 'TEXT'
 									});
 									break;
@@ -376,13 +400,13 @@ class Schema implements \JsonSerializable
 										if($schema->hasReference($propertyReflection->getName())) {
 											$schema->setColumnType(
 												$propertyReflection->getName(),
-												'INT'
+												'BIGINT'
 											);
 											break;
 										} elseif(enum_exists($typeName)) { // PHP enum
 											$schema->setColumnType(
 												$propertyReflection->getName(),
-												'ENUM('.implode(',', array_map(fn($case) => $case->value, $typeName::cases())).')'
+												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
 											);
 											break;
 										} else {
@@ -401,6 +425,8 @@ class Schema implements \JsonSerializable
 						} else {
 							var_dump('NO TYPE ?');
 						}
+					} else {
+						var_dump('NO TYPE ?');
 					}
 				}
 
@@ -453,9 +479,6 @@ class Schema implements \JsonSerializable
 
 			if(!empty($modelAttribute->nullable))
 				$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
-			else {
-				// should infer nullable from ?.
-			}
 
 			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
@@ -551,8 +574,11 @@ class Schema implements \JsonSerializable
 					foreach($schema->getReferences() as $key => $reference) {
 						$reference; // silence not used variable
 
-						if($name = $schema->getColumnName($key)) {
-							$schema->setReferenceColumnName($key, $name);
+						if($schema->hasColumn($key)) {
+							$schema->setReferenceColumnName($key, $schema->getColumnName($key));
+
+							if(is_null($schema->isReferenceNullable($key)))
+								$schema->setReferenceNullable($key, $schema->isColumnNullable($key));
 
 							$schema->unsetColumn($key);
 						}
@@ -582,12 +608,25 @@ class Schema implements \JsonSerializable
 
 	public function dumpSQL(): string
 	{
-		$str = 'CREATE TABLE '. $this->getTableName() .' (';
+		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
 
 		$columns = array_flip($this->columnNames);
 
 		foreach($columns as $columnName => $propertyName) {
-			$str.= '`'. $columnName .'` '. $this->getColumnType($propertyName) . ($this->isColumnNullable($propertyName)?'':' NOT NULL') . ($this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'') .', ';
+			$str.= '`'. $columnName .'` ';
+			$str.= $this->getColumnType($propertyName);
+			$str.= $this->isColumnNullable($propertyName)?'':' NOT NULL';
+			if($this->hasColumnDefaultValue($propertyName)) {
+				$str.= ' DEFAULT ';
+				$defaultValue = $this->getColumnDefaultValue($propertyName);
+				$str.= match(gettype($defaultValue)) {
+					'int', 'double', 'float' => $defaultValue,
+					'boolean' => (int)$defaultValue,
+					'string' => '\''.$defaultValue.'\'',
+				};
+			}
+			$str.= $this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'';
+			$str.= ', ';
 		}
 
 		if($primaryColumnName = $this->getUIdColumnName())
@@ -627,6 +666,10 @@ class Schema implements \JsonSerializable
 		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
 
 		foreach($classNames as $className) {
+			$classReflection = new ReflectionClass($className);
+			if($classReflection->isAbstract())
+				continue;
+
 			$str = self::initFromAttributes($className)?->dumpSQL();
 
 			if(!empty($str)) {

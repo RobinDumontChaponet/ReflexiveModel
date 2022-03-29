@@ -14,7 +14,7 @@ class Column
 		public readonly bool $isId = false,
 		public readonly bool $unique = false,
 		public readonly ?string $type = null,
-		public readonly bool $nullable = false,
+		public readonly ?bool $nullable = null,
 		public readonly bool $autoIncrement = false,
 	)
 	{}
