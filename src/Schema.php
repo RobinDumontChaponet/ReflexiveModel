@@ -54,6 +54,7 @@ class Schema implements \JsonSerializable
 	public function unsetColumn(int|string $key): void
 	{
 		unset($this->columns[$key]);
+		// unset($this->columns[$key]['columnName']);
 	}
 
 	public function getColumnNames(): array
@@ -160,7 +161,7 @@ class Schema implements \JsonSerializable
 	public function getReferenceForeignTableName(int|string $key): ?string
 	{
 		if($this->hasReference($key))
-			return $this->references[$key]['foreignTableName'];
+			return $this->references[$key]['foreignTableName'] ?? null;
 
 		return null;
 	}
@@ -456,8 +457,8 @@ class Schema implements \JsonSerializable
 			foreach($propertyReflection->getAttributes(Reference::class) as $attributeReflection) {
 				$modelAttribute = $attributeReflection->newInstance();
 
-				if($modelAttribute->type == $className)
-					continue;
+				// if($modelAttribute->type == $className)
+				// 	continue;
 
 				if(empty($modelAttribute->type))
 					throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists, from schema "'.$className.'"');
@@ -499,7 +500,7 @@ class Schema implements \JsonSerializable
 				case Cardinality::ManyToMany:
 					$schema->setReferenceForeignTableName(
 						$propertyName,
-						$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'In'.$referencedSchema->getTableName()
+						$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'Have'.$referencedSchema->getTableName()
 					);
 				break;
 			}
@@ -606,16 +607,18 @@ class Schema implements \JsonSerializable
 		return self::$schemas;
 	}
 
-	public function dumpSQL(): string
+	public function dumpSQL(?string $className = null): string
 	{
 		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
 
 		$columns = array_flip($this->columnNames);
 
+		// var_dump($this->columns, array_keys($this->references));
 		foreach($columns as $columnName => $propertyName) {
+
 			$str.= '`'. $columnName .'` ';
 			$str.= $this->getColumnType($propertyName);
-			$str.= $this->isColumnNullable($propertyName)?'':' NOT NULL';
+			$str.= ($this->isColumnNullable($propertyName) ?? $this->isReferenceNullable($propertyName))?'':' NOT NULL';
 			if($this->hasColumnDefaultValue($propertyName)) {
 				$str.= ' DEFAULT ';
 				$defaultValue = $this->getColumnDefaultValue($propertyName);
@@ -630,9 +633,62 @@ class Schema implements \JsonSerializable
 		}
 
 		if($primaryColumnName = $this->getUIdColumnName())
-			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`)';
+			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`), ';
 
-		return $str.'); ';
+		foreach(array_keys($this->references) as $propertyName) {
+			if($this->getReferenceCardinality($propertyName) === Cardinality::ManyToMany)
+				continue;
+
+			if($this->getReferenceType($propertyName) == $className)
+				$referencedSchema = $this;
+			else
+				$referencedSchema = self::initFromAttributes($this->getReferenceType($propertyName));
+			if(!$referencedSchema)
+				continue;
+
+			$str.= 'CONSTRAINT `'. $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnName() .'`) ';
+			$str.= 'ON DELETE '. ($this->isReferenceNullable($propertyName)? 'SET NULL' : ($this->getReferenceType($propertyName) == $className ? 'RESTRICT' : 'CASCADE')) . ' ';
+			$str.= 'ON UPDATE CASCADE, ';
+		}
+
+		return rtrim($str, ', ').') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
+	}
+
+	public function dumpReferencesSQL(): array
+	{
+		$array = [];
+		foreach(array_keys($this->references) as $propertyName) {
+			if($dump = $this->dumpReferenceSQL($propertyName))
+				$array[$propertyName] = $dump;
+		}
+
+		return $array;
+	}
+
+	private function dumpReferenceSQL(string $propertyName): ?string
+	{
+		if(!$this->hasReference($propertyName))
+			return null;
+
+		if($this->getReferenceCardinality($propertyName) !== Cardinality::ManyToMany)
+			return null;
+
+		$referencedSchema = self::initFromAttributes($this->getReferenceType($propertyName));
+		if(!$referencedSchema)
+			return null;
+
+		$str = 'CREATE TABLE `'. $this->getReferenceForeignTableName($propertyName) .'` (';
+
+		$str.= '`'. $this->getReferenceForeignColumnName($propertyName) .'` ' . $this->getUIdColumnType() . ', ';
+
+		$str.= '`'. $this->getReferenceForeignRightColumnName($propertyName) .'` ' . $referencedSchema->getUIdColumnType() . ', ';
+
+		$str.= 'PRIMARY KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`, `'. $this->getReferenceForeignRightColumnName($propertyName) .'`), ';
+
+		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`) REFERENCES `'. $this->getTableName() .'` (`'. $this->getUIdColumnName() .'`) ON DELETE CASCADE ON UPDATE CASCADE, ';
+		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignRightColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnName() .'`) ON DELETE CASCADE ON UPDATE CASCADE';
+
+		return $str.') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
 	}
 
 	public static function export(Event $event)
@@ -664,19 +720,43 @@ class Schema implements \JsonSerializable
 		}
 
 		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
+		$io->writeRaw('', true);
+		$io->writeRaw('-- Begining of export --', true);
+		$io->writeRaw('-- Ignore foreign keys checks while creating tables.', true);
+		$io->writeRaw('SET foreign_key_checks = 0;', true);
+		$io->writeRaw('', true);
 
+		$io->writeRaw('-- Creating entities tables.', true);
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract())
 				continue;
 
-			$str = self::initFromAttributes($className)?->dumpSQL();
+			$str = self::initFromAttributes($className)?->dumpSQL($className);
 
 			if(!empty($str)) {
 				$io->writeRaw($str, true);
 				$io->writeRaw('', true);
 			}
 		}
+
+		$io->writeRaw('-- Creating associations tables.', true);
+		foreach($classNames as $className) {
+			$classReflection = new ReflectionClass($className);
+			if($classReflection->isAbstract())
+				continue;
+
+			foreach(self::initFromAttributes($className)?->dumpReferencesSQL() ?? [] as $dump) {
+				$io->writeRaw($dump, true);
+				$io->writeRaw('', true);
+			}
+		}
+
+		$io->writeRaw('', true);
+		$io->writeRaw('-- Do not ignore foreign keys checks anymore.', true);
+		$io->writeRaw('SET foreign_key_checks = 1;', true);
+		$io->writeRaw('', true);
+		$io->writeRaw('-- End of export --', true);
 
 		// $io->writeRaw(json_encode(self::getCache(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT), true);
 	}
