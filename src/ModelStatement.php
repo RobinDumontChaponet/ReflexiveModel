@@ -95,21 +95,29 @@ abstract class ModelStatement
 						}
 					}
 
+					if($schema->hasReferences() && empty($database))
+						throw new \InvalidArgumentException('No database to use for subsequent queries.');
+
 					foreach($schema->getReferences() as $propertyName => $reference) {
+						// var_dump($propertyName, $reference);
 						if($referencedSchema = Schema::getCache()[$reference['type']]) {
-							if(empty($database))
-								throw new \InvalidArgumentException('No database to use for subsequent queries.');
-							else {
-								switch($reference['cardinality']) {
-									case Cardinality::OneToMany:
-										$propertyReflexion = $classReflection->getProperty($propertyName);
-										$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
-									break;
-									case Cardinality::ManyToMany:
-										$propertyReflexion = $classReflection->getProperty($propertyName);
-										$propertyReflexion->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
-									break;
-								}
+							switch($reference['cardinality']) {
+								case Cardinality::OneToOne:
+									$propertyReflexion = $classReflection->getProperty($propertyName);
+									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+								break;
+								case Cardinality::OneToMany:
+									$propertyReflexion = $classReflection->getProperty($propertyName);
+									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+								break;
+								case Cardinality::ManyToOne:
+									$propertyReflexion = $classReflection->getProperty($propertyName);
+									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+								break;
+								case Cardinality::ManyToMany:
+									$propertyReflexion = $classReflection->getProperty($propertyName);
+									$propertyReflexion->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
+								break;
 							}
 						}
 					}
@@ -159,32 +167,29 @@ abstract class ModelStatement
 			if(!is_object($value))
 				throw new \TypeError('Can only reference "'.$propertyName.'" with object, '.gettype($value).' given.');
 
-			$referencedSchema = Schema::getCache()[$value::class];
-			if(!isset($referencedSchema)) {
-				throw new \TypeError('Schema "'.$value::class.'" not set');
-			}
+			// $referencedSchema = Schema::getCache()[$value::class];
+			// if(!isset($referencedSchema)) {
+			// 	throw new \TypeError('Schema "'.$value::class.'" not set');
+			// }
 
-			if($this->schema->hasReference($propertyName)) {
-				if($this->schema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
-					$this->query->join(
-						Query\Join::inner,
-						$this->schema->getReferenceForeignTableName($propertyName),
-						$this->schema->getReferenceForeignColumnName($propertyName),
-						Comparator::EQUAL,
-						$this->schema->getTableName(),
-						$this->schema->getUidColumnName(),
-					);
-					$this->query->and(
-						$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
-						$comparator,
-						$value->getId(),
-					);
-				}
-			} else {
-				throw new \TypeError('Reference "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+			if($this->schema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
+				$this->query->join(
+					Query\Join::inner,
+					$this->schema->getReferenceForeignTableName($propertyName),
+					$this->schema->getReferenceForeignColumnName($propertyName),
+					Comparator::EQUAL,
+					$this->schema->getTableName(),
+					$this->schema->getUidColumnName(),
+				);
+				$this->query->and(
+					$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
+					$comparator,
+					$value->getId(),
+				);
 			}
 		} else {
-			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+			var_dump($this->schema);
+			throw new \TypeError('Property (or Reference) "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
 		}
 
 		return $this;

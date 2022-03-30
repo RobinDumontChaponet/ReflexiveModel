@@ -97,6 +97,10 @@ class Schema implements \JsonSerializable
 	{
 		return isset($this->references[$key]);
 	}
+	public function hasReferences(): bool
+	{
+		return !empty($this->references);
+	}
 
 	public function getReferenceCardinality(int|string $key): ?Cardinality
 	{
@@ -484,11 +488,21 @@ class Schema implements \JsonSerializable
 			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyName,
+				Cardinality::ManyToOne => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnName() ?? 'id',
 			});
 
 			switch($modelAttribute->cardinality) {
 				case Cardinality::OneToOne:
+					$schema->setReferenceForeignTableName(
+						$propertyName,
+						$modelAttribute->foreignTableName ?? $referencedSchema->getTableName()
+					);
+					$schema->setReferenceForeignColumnName(
+						$propertyName,
+						$schema->getReferenceColumnName($propertyName)
+					);
+				break;
 				case Cardinality::OneToMany:
 					if(!empty($modelAttribute->foreignTableName)) {
 						$schema->setReferenceForeignTableName(
@@ -496,23 +510,20 @@ class Schema implements \JsonSerializable
 							$modelAttribute->foreignTableName
 						);
 					}
+					if(!empty($modelAttribute->foreignColumnName)) {
+						$schema->setReferenceForeignColumnName(
+							$propertyName,
+							$modelAttribute->foreignColumnName
+						);
+					}
 				break;
-				case Cardinality::ManyToMany:
-					$schema->setReferenceForeignTableName(
-						$propertyName,
-						$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'Have'.$referencedSchema->getTableName()
-					);
-				break;
-			}
-
-			switch($modelAttribute->cardinality) {
-				case Cardinality::OneToOne:
-					$schema->setReferenceForeignColumnName(
-						$propertyName,
-						$schema->getReferenceColumnName($propertyName)
-					);
-				break;
-				case Cardinality::OneToMany:
+				case Cardinality::ManyToOne:
+					if(!empty($modelAttribute->foreignTableName)) {
+						$schema->setReferenceForeignTableName(
+							$propertyName,
+							$modelAttribute->foreignTableName
+						);
+					}
 					if(!empty($modelAttribute->foreignColumnName)) {
 						$schema->setReferenceForeignColumnName(
 							$propertyName,
@@ -521,15 +532,17 @@ class Schema implements \JsonSerializable
 					}
 				break;
 				case Cardinality::ManyToMany:
+					$schema->setReferenceForeignTableName(
+						$propertyName,
+						$modelAttribute->foreignTableName ?? lcfirst($schema->getTableName()).'Have'.$referencedSchema->getTableName()
+					);
 					$schema->setReferenceForeignColumnName(
 						$propertyName,
 						$modelAttribute->foreignColumnName ?? lcfirst($schema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyName))
 					);
+					$schema->setReferenceForeignRightColumnName($propertyName, $modelAttribute->foreignRightColumnName ?? $modelAttribute->foreignColumnName ?? lcfirst($referencedSchema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyName)));
 				break;
 			}
-
-			if($modelAttribute->cardinality == Cardinality::ManyToMany)
-				$schema->setReferenceForeignRightColumnName($propertyName, $modelAttribute->foreignRightColumnName ?? $modelAttribute->foreignColumnName ?? lcfirst($referencedSchema->getTableName()).ucfirst($schema->getReferenceColumnName($propertyName)));
 
 			$schema->setReferenceType($propertyName, $modelAttribute->type);
 		}
@@ -572,9 +585,7 @@ class Schema implements \JsonSerializable
 					// get attributes of properties
 					static::reflectPropertiesAttributes($classReflection, $schema, $className);
 
-					foreach($schema->getReferences() as $key => $reference) {
-						$reference; // silence not used variable
-
+					foreach(array_keys($schema->getReferences()) as $key) {
 						if($schema->hasColumn($key)) {
 							$schema->setReferenceColumnName($key, $schema->getColumnName($key));
 
