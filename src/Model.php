@@ -6,6 +6,7 @@ namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
 use ReflectionClass;
+use ReflectionNamedType;
 
 abstract class Model implements \JsonSerializable
 {
@@ -51,8 +52,12 @@ abstract class Model implements \JsonSerializable
 					if($modelAttribute->maxLength)
 						static::$lengths[static::class][$propertyReflection->getName()] = $modelAttribute->maxLength;
 
-					if(!empty($modelAttribute->makeGetter))
-						static::$getters[static::class][is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : 'get'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
+					if(!empty($modelAttribute->makeGetter)) {
+						$type = $propertyReflection->getType();
+						$prefix = ($type instanceof ReflectionNamedType && $type->getName() == 'bool')? 'is' : 'get';
+
+						static::$getters[static::class][is_string($modelAttribute->makeGetter)? $modelAttribute->makeGetter : $prefix.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
+					}
 
 					if(!empty($modelAttribute->makeSetter))
 						static::$setters[static::class][is_string($modelAttribute->makeSetter)? $modelAttribute->makeSetter : 'set'.ucfirst($propertyReflection->getName())] = $propertyReflection->getName();
@@ -91,28 +96,44 @@ abstract class Model implements \JsonSerializable
         ];
     }
 
-	function __get(string $name): mixed
+	private function getValue(string $name): mixed
 	{
 		if(isset(static::$attributedProperties[static::class][$name])) {
 			return $this->{$name};
 		}
 
 		set_error_handler(self::errorHandler());
-		trigger_error('Access to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
+		trigger_error('Access (get) to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
 
 		return null;
 	}
 
-	public function __set($name, $value)
+	private function setValue(string $name, mixed $value): void
 	{
 		if(isset(static::$attributedProperties[static::class][$name])) {
-			if(static::$attributedProperties[static::class][$name])
+			if(static::$attributedProperties[static::class][$name]) {
+				if($this->{$name} !== $value)
+					$this->modifiedProperties[] = $name;
+
 				$this->{$name} = $value;
-			else {
+			} else {
 				set_error_handler(self::errorHandler());
 				trigger_error(static::class.'::$'.$name.' is readonly', E_USER_ERROR);
 			}
+		} else {
+			set_error_handler(self::errorHandler());
+			trigger_error('Access (set) to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
 		}
+	}
+
+	function __get(string $name): mixed
+	{
+		return $this->getValue($name);
+	}
+
+	public function __set($name, $value)
+	{
+		$this->setValue($name, $value);
 	}
 
 	public function __isset($name)
@@ -122,14 +143,16 @@ abstract class Model implements \JsonSerializable
 
 	public function __call(string $name, array $arguments): mixed
 	{
-		$arguments; // shut up, IDEs
-
-		if(isset(static::$getters[static::class][$name])) {
-			return static::$getters[static::class][$name]();
+		if(isset(static::$getters[static::class][$name])) { // auto-getter
+			return $this->getValue(static::$getters[static::class][$name]);
+		} elseif(isset(static::$setters[static::class][$name])) { // auto-setter
+			return $this->setValue(static::$setters[static::class][$name], ...$arguments);
 		} else {
 			set_error_handler(self::errorHandler());
 			trigger_error('Call to undefined method '.static::class.'::'.$name.'()', E_USER_ERROR);
 		}
+
+		return null;
 	}
 
 	private static function errorHandler(): null|callable
