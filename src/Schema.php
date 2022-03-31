@@ -87,6 +87,10 @@ class Schema implements \JsonSerializable
 	{
 		$this->uIdColumnName = $name;
 	}
+	public function hasUId(): bool
+	{
+		return isset($this->uIdColumnName);
+	}
 
 	public function getUIdColumnType(): ?string
 	{
@@ -360,6 +364,9 @@ class Schema implements \JsonSerializable
 	{
 		foreach($reflection->getProperties() as $propertyReflection) {
 			foreach($propertyReflection->getAttributes(Column::class) as $attributeReflection) {
+				if($schema->hasColumn($propertyReflection->getName()))
+					continue;
+
 				$modelAttribute = $attributeReflection->newInstance();
 
 				if(!empty($modelAttribute->name))
@@ -399,16 +406,17 @@ class Schema implements \JsonSerializable
 									// }
 
 									if(class_exists($typeName)) { // object
-										foreach($propertyReflection->getAttributes(Reference::class) as $referenceReflection) {
-											static::reflectReferencePropertiesAttribute($referenceReflection->newInstance(), $schema, $propertyReflection->getName());
-										}
-										if($schema->hasReference($propertyReflection->getName())) {
-											$schema->setColumnType(
-												$propertyReflection->getName(),
-												'BIGINT'
-											);
-											break;
-										} elseif(enum_exists($typeName)) { // PHP enum
+										// foreach($propertyReflection->getAttributes(Reference::class) as $referenceReflection) {
+										// 	static::reflectReferencePropertiesAttribute($referenceReflection->newInstance(), $schema, $className, $propertyReflection->getName());
+										// }
+										// if($schema->hasReference($propertyReflection->getName())) {
+										// 	$schema->setColumnType(
+										// 		$propertyReflection->getName(),
+										// 		'BIGINT'
+										// 	);
+										// 	break;
+										// } else
+										if(enum_exists($typeName)) { // PHP enum
 											$schema->setColumnType(
 												$propertyReflection->getName(),
 												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
@@ -467,12 +475,12 @@ class Schema implements \JsonSerializable
 				if(empty($modelAttribute->type))
 					throw new \InvalidArgumentException('Referenced schema "'.$modelAttribute->type.'" does not exists, from schema "'.$className.'"');
 
-				static::reflectReferencePropertiesAttribute($modelAttribute, $schema, $propertyReflection->getName());
+				static::reflectReferencePropertiesAttribute($modelAttribute, $schema, $className, $propertyReflection->getName());
 			}
 		}
 	}
 
-	private static function reflectReferencePropertiesAttribute(Reference $modelAttribute, Schema &$schema, string $propertyName): void
+	private static function reflectReferencePropertiesAttribute(Reference $modelAttribute, Schema &$schema, string $className, string $propertyName): void
 	{
 		if($schema->hasReference($propertyName))
 			return;
@@ -480,6 +488,9 @@ class Schema implements \JsonSerializable
 		$referencedSchema = self::initFromAttributes($modelAttribute->type);
 
 		if(isset($referencedSchema)) {
+			if(!$referencedSchema->hasUId())
+				throw new \InvalidArgumentException('Cannot reference schema "'.$modelAttribute->type.'" without its uId, from schema "'.$className.'::'.$propertyName.'"');
+
 			$schema->setReferenceCardinality($propertyName, $modelAttribute->cardinality);
 
 			if(!empty($modelAttribute->nullable))
