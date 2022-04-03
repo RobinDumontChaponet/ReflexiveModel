@@ -226,6 +226,21 @@ class Schema implements \JsonSerializable
 			$this->references[$key] = ['nullable' => $nullable];
 	}
 
+	public function isReferenceInverse(int|string $key): ?bool
+	{
+		if($this->hasReference($key))
+			return $this->references[$key]['inverse'] ?? null;
+
+		return null;
+	}
+	public function setReferenceInverse(int|string $key, bool $inverse = true): void
+	{
+		if($this->hasReference($key))
+			$this->references[$key]['inverse'] = $inverse;
+		else
+			$this->references[$key] = ['inverse' => $inverse];
+	}
+
 	public function getColumnType(int|string $key): ?string
 	{
 		if($this->hasColumn($key))
@@ -496,6 +511,9 @@ class Schema implements \JsonSerializable
 			if(!empty($modelAttribute->nullable))
 				$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
 
+			if(!empty($modelAttribute->inverse))
+				$schema->setReferenceInverse($propertyName, $modelAttribute->inverse);
+
 			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyName,
@@ -603,6 +621,15 @@ class Schema implements \JsonSerializable
 							if(is_null($schema->isReferenceNullable($key)))
 								$schema->setReferenceNullable($key, $schema->isColumnNullable($key));
 
+// 							if($schema->isReferenceInverse($key)) {
+// 								$columnName = $schema->getColumnName($key);
+// 								$schema->setReferenceColumnName($columnName, $columnName);
+//
+// 								$schema->setReferenceType($columnName, $className);
+// 								$schema->setReferenceCardinality($columnName, $schema->getReferenceCardinality($key));
+// 								$schema->setReferenceNullable($columnName, $schema->isReferenceNullable($key));
+// 							}
+
 							$schema->unsetColumn($key);
 						}
 					}
@@ -634,8 +661,6 @@ class Schema implements \JsonSerializable
 		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
 
 		$columns = array_flip($this->columnNames);
-
-		// var_dump($this->columns, array_keys($this->references));
 		foreach($columns as $columnName => $propertyName) {
 
 			$str.= '`'. $columnName .'` ';

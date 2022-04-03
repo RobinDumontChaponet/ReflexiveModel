@@ -38,24 +38,25 @@ abstract class ModelStatement
 		if(isset($schema)) {
 			if(!isset(self::$instanciators[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
+				$modelClassName = $this->modelClassName;
 
 				// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
-				self::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema) {
+				self::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema, $modelClassName) {
 					$this->modelClassName::initModelAttributes();
 					$object = $classReflection->newInstanceWithoutConstructor();
 					$object->setId($rs->id);
 
 					foreach($schema->getColumns() as $propertyName => $column) {
 						if(isset($column['columnName'])) {
-							$propertyReflexion = $classReflection->getProperty($propertyName);
-							$propertyReflexion->setAccessible(true);
+							$propertyReflection = $classReflection->getProperty($propertyName);
+							$propertyReflection->setAccessible(true);
 
-							if($type = $propertyReflexion->getType()) {
+							if($type = $propertyReflection->getType()) {
 								if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 									foreach($types as $type) {
 										if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
 											if($type->allowsNull()) { // is nullable
-												$propertyReflexion->setValue($object, null);
+												$propertyReflection->setValue($object, null);
 												break;
 											} else {
 												throw new \TypeError('Property "'.$propertyName.'" of model "'.$this->modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
@@ -64,19 +65,19 @@ abstract class ModelStatement
 											$value = $rs->{$column['columnName']};
 
 											if($type->isBuiltin()) { // PHP builtin types
-												$propertyReflexion->setValue($object, $value);
+												$propertyReflection->setValue($object, $value);
 												break;
 											} else {
 												$typeName = $type->getName();
 
 												if(enum_exists($typeName)) { // PHP enum
-													$propertyReflexion->setValue(
+													$propertyReflection->setValue(
 														$object,
 														$typeName::tryFrom($value)
 													);
 													break;
 												} elseif(class_exists($typeName, true)) { // object
-													$propertyReflexion->setValue(
+													$propertyReflection->setValue(
 														$object,
 														match($typeName) {
 															'DateTime' => new \DateTime($value),
@@ -89,7 +90,7 @@ abstract class ModelStatement
 										}
 									}
 								} else {
-									$propertyReflexion->setValue($object, $rs->{$column['columnName']});
+									$propertyReflection->setValue($object, $rs->{$column['columnName']});
 								}
 							}
 						}
@@ -99,24 +100,24 @@ abstract class ModelStatement
 						throw new \InvalidArgumentException('No database to use for subsequent queries.');
 
 					foreach($schema->getReferences() as $propertyName => $reference) {
-						// var_dump($propertyName, $reference);
 						if($referencedSchema = Schema::getCache()[$reference['type']]) {
+							$propertyReflection = $classReflection->getProperty($propertyName);
+
 							switch($reference['cardinality']) {
 								case Cardinality::OneToOne:
-									$propertyReflexion = $classReflection->getProperty($propertyName);
-									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::OneToMany:
-									$propertyReflexion = $classReflection->getProperty($propertyName);
-									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::ManyToOne:
-									$propertyReflexion = $classReflection->getProperty($propertyName);
-									$propertyReflexion->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									// if(isset($reference['inverse'])) {
+									// 	$propertyReflection->setValue($object, $modelClassName::search()->where($reference['columnName'], Comparator::EQUAL, $object)->execute($database));
+									// }
 								break;
 								case Cardinality::ManyToMany:
-									$propertyReflexion = $classReflection->getProperty($propertyName);
-									$propertyReflexion->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
 								break;
 							}
 						}
@@ -188,7 +189,6 @@ abstract class ModelStatement
 				);
 			}
 		} else {
-			var_dump($this->schema);
 			throw new \TypeError('Property (or Reference) "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
 		}
 
