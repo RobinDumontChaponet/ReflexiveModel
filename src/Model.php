@@ -21,7 +21,6 @@ abstract class Model implements \JsonSerializable
 
 	public static function getPropertyMaxLength(string $className, string $propertyName): int
 	{
-		// var_dump(self::$lengths, $className, $propertyName);
 		return self::$lengths[$className][$propertyName] ?? 0;
 	}
 

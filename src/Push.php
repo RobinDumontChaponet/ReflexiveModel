@@ -93,7 +93,6 @@ abstract class Push extends ModelStatement
 					case Cardinality::OneToMany:
 						$value = $propertyReflection->getValue($this->model);
 						if(isset($reference['columnName']) && !is_null($value)) {
-							// var_dump($propertyReflection->getType()->getName());
 							$this->query->set($reference['columnName'], $value->getId());
 						}
 					break;
@@ -102,8 +101,6 @@ abstract class Push extends ModelStatement
 					break;
 				}
 			}
-
-			// echo $this->query;
 		}
 	}
 
