@@ -10,7 +10,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public bool $cache = true;
 	public bool $autoExecute = true;
 	public bool $autoClose = true;
-	public bool $fetchAbsolute = false; // fetch using FETCH_ORI_ABS for lists. Only works when dbsDriver supports scrollable cursor.
+	public bool $fetchAbsolute = false; // fetch using FETCH_ORI_ABS for lists. Only works when dbDriver supports scrollable cursor.
 
 	// Internal counters
 	private int $count = 0;
@@ -24,8 +24,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private array $keys = [];
 	private array $objects = [];
 
+	private array $addedKeys = [];
+	private array $removedKeys = [];
+
 	// global cache ?
-	protected static array $collections = [];
+	// protected static array $collections = [];
 
 	// internal flags/state
 	private bool $exhausted = false;
@@ -33,8 +36,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private bool $isList = false;
 
 	public function __construct(
-		private \PDOStatement $statement,
-		private \Closure $generator,
+		private ?\PDOStatement $statement = null,
+		private ?\Closure $generator = null,
 		private ?int $limit = null, // used to determine if is list
 		private int $offset = 0, // used to determine if is list
 		private ?\PDO $database = null, // used for subsequent queries if any
@@ -68,13 +71,13 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private function init(): void
 	{
-		$this->count = $this->statement->rowCount();
+		$this->count = $this->statement?->rowCount() ?? 0;
 		$this->exhausted = false;
 	}
 
 	public function reset(bool $keepObjects = false): void
 	{
-		$this->reset = $this->statement->closeCursor();
+		$this->reset = $this->statement?->closeCursor();
 		if(!$keepObjects) {
 			$this->keys = [];
 			$this->objects = [];
@@ -86,8 +89,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	{
 		$this->reset = false;
 
-		$result = $this->statement->execute($params);
-		$this->count = $this->statement->rowCount();
+		$result = $this->statement?->execute($params);
+		$this->count = $this->statement?->rowCount() ?? 0;
 
 		$this->isList = (0 === $this->offset && $this->limit == $this->count);
 
@@ -104,11 +107,12 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private function fetchCurrent(): void
 	{
-		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && (null === $this->statement?->errorCode() || $this->reset)) {
 			$this->execute();
 		}
 
-		[$this->lastKey, $this->lastObject] = $this->fetch($this->index);
+		if(!empty($this->statement))
+			[$this->lastKey, $this->lastObject] = $this->fetch($this->index);
 
 		$this->valid = !empty($this->lastObject);
 	}
@@ -119,7 +123,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if($this->cache && isset($this->keys[$index])) { // exists in cache
 			$key = $this->keys[$index];
 			return [$key, $this->objects[$key]];
-		} else { // not yet in cache
+		} elseif(!empty($this->statement)) { // not yet in cache
 			$rs = $this->statement->fetch(
 				\PDO::FETCH_OBJ,
 				\PDO::FETCH_ORI_ABS,
@@ -173,7 +177,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			$this->exhausted = true;
 
 			if($this->autoClose)
-				$this->statement->closeCursor();
+				$this->statement?->closeCursor();
 		}
 
 		return $this->valid;
@@ -190,7 +194,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	 */
 	public function offsetExists(mixed $key): bool
 	{
-		return isset($this->objects[$key]);
+		return null !== $this[$key];
 	}
 
 	public function offsetGet(mixed $key): mixed
@@ -198,6 +202,9 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(isset($this->objects[$key])) {
 			return $this->objects[$key];
 		}
+
+		if(empty($this->statement))
+			return null;
 
 		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
 			$this->execute();
@@ -218,7 +225,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 						break;
 				}
 
-				return $this->objects[$key];
+				return $this->objects[$key] ?? null;
 			}
 		}
 
@@ -227,23 +234,50 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function offsetSet(mixed $key, mixed $object): void
 	{
+		if(isset($this[$key]))
+			return;
+
 		if(is_null($key)) {
 			$this->objects[] = $object;
-			$this->keys[] = array_key_last($this->objects);
+			$this->addedKeys[] = array_key_last($this->objects);
 		} else {
 			$this->objects[$key] = $object;
 
-			if(!in_array($key, $this->keys))
-				$this->keys[] = $key;
+			if(!in_array($key, $this->addedKeys))
+				$this->addedKeys[] = $key;
 		}
+		$this->count++;
 	}
 
 	public function offsetUnset(mixed $key): void
 	{
-		unset($this->objects[$key]);
-		unset($this->keys[array_search($key, $this->keys)]);
+		if(isset($this->objects[$key])) {
+			unset($this->objects[$key]);
+			unset($this->keys[array_search($key, $this->keys)]);
 
-		$this->keys = array_values($this->keys); // re-index
+			$this->removedKeys[] = $key;
+			$this->count--;
+
+			$this->keys = array_values($this->keys); // re-index
+		}
+	}
+
+	/*
+	 * Get what has changed by ArrayAccesses
+	 */
+	public function getAddedKeys(): array
+	{
+		return $this->addedKeys;
+	}
+
+	public function getRemovedKeys(): array
+	{
+		return $this->removedKeys;
+	}
+
+	public function getModifiedCount(): int
+	{
+		return count($this->addedKeys) + count($this->removedKeys);
 	}
 
 	/*
@@ -251,7 +285,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	 */
 	public function count(): int
 	{
-		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && (null === $this->statement->errorCode() || $this->reset)) {
 			$this->execute();
 		}
 

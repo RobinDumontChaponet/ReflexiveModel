@@ -8,8 +8,13 @@ use ReflectionProperty;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
+use Reflexive\Query;
+use Reflexive\Core\Comparator;
+
 abstract class Push extends ModelStatement
 {
+	private array $referencedQueries = [];
+
 	public function __construct(
 		protected Model &$model
 	)
@@ -96,6 +101,28 @@ abstract class Push extends ModelStatement
 							$this->query->set($reference['columnName'], $value->getId());
 						}
 					break;
+					case Cardinality::ManyToMany:
+						$value = $propertyReflection->getValue($this->model);
+
+						if($value instanceof ModelCollection) { // TODO : this is temporary
+							foreach($value->getAddedKeys() as $addedKey) {
+								$referencedQuery = new Query\Insert();
+								$referencedQuery->set($reference['foreignColumnName'], $model->getId())
+									->set($reference['foreignRightColumnName'], $addedKey)
+									->from($reference['foreignTableName']);
+
+								$this->referencedQueries[] = $referencedQuery;
+							}
+							foreach($value->getRemovedKeys() as $removedKey) {
+								$referencedQuery = new Query\Delete();
+								$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $model->getId())
+									->and($reference['foreignRightColumnName'], Comparator::EQUAL, $removedKey)
+									->from($reference['foreignTableName']);
+
+								$this->referencedQueries[] = $referencedQuery;
+							}
+						}
+					break;
 					default:
 						// var_dump($reference);
 					break;
@@ -107,6 +134,14 @@ abstract class Push extends ModelStatement
 	public function execute(\PDO $database)
 	{
 		$statement = $this->query->prepare($database);
-		return $statement->execute();
+		$execute = $statement->execute();
+
+		if($execute) {
+			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
+				$referencedQuery->prepare($database)->execute();
+			}
+		}
+
+		return $execute;
 	}
 }
