@@ -46,7 +46,7 @@ abstract class Model implements \JsonSerializable
 					$modelAttribute = $attributeReflection->newInstance();
 
 					if($propertyReflection->isProtected())
-						self::$attributedProperties[static::class][$propertyReflection->getName()] = $modelAttribute->readonly;
+						self::$attributedProperties[static::class][$propertyReflection->getName()] = !$modelAttribute->readonly;
 
 					if($modelAttribute->maxLength)
 						static::$lengths[static::class][$propertyReflection->getName()] = $modelAttribute->maxLength;
