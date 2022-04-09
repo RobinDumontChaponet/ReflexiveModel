@@ -397,10 +397,6 @@ class Schema implements \JsonSerializable
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
-								if(!empty($modelAttribute->defaultValue))
-									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
-								else
-									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 
 								if($type->isBuiltin()) { // PHP builtin types
 									$className::initModelAttributes();
@@ -439,6 +435,8 @@ class Schema implements \JsonSerializable
 												$propertyReflection->getName(),
 												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
 											);
+											if($propertyReflection->hasDefaultValue())
+												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->value);
 											break;
 										} else {
 											$schema->setColumnType(
@@ -452,6 +450,11 @@ class Schema implements \JsonSerializable
 										}
 									}
 								}
+
+								if(!empty($modelAttribute->defaultValue))
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
+								elseif($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 							}
 						} else {
 							var_dump('NO TYPE ?');
@@ -770,13 +773,14 @@ class Schema implements \JsonSerializable
 		}
 
 		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
-		$io->writeRaw('', true);
+		$io->write('', true);
 		$io->writeRaw('-- Begining of export --', true);
 		$io->writeRaw('-- Ignore foreign keys checks while creating tables.', true);
 		$io->writeRaw('SET foreign_key_checks = 0;', true);
 		$io->writeRaw('', true);
 
 		$io->writeRaw('-- Creating entities tables.', true);
+		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract())
@@ -787,10 +791,14 @@ class Schema implements \JsonSerializable
 			if(!empty($str)) {
 				$io->writeRaw($str, true);
 				$io->writeRaw('', true);
+				$count++;
 			}
 		}
+		$io->writeRaw('-- Created '.$count.' entities', true);
+		$io->writeRaw('', true);
 
 		$io->writeRaw('-- Creating associations tables.', true);
+		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract())
@@ -799,8 +807,11 @@ class Schema implements \JsonSerializable
 			foreach(self::initFromAttributes($className)?->dumpReferencesSQL() ?? [] as $dump) {
 				$io->writeRaw($dump, true);
 				$io->writeRaw('', true);
+				$count++;
 			}
 		}
+		$io->writeRaw('-- Created '.$count.' associations', true);
+		$io->writeRaw('', true);
 
 		$io->writeRaw('', true);
 		$io->writeRaw('-- Do not ignore foreign keys checks anymore.', true);
