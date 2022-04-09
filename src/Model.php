@@ -19,6 +19,7 @@ abstract class Model implements \JsonSerializable
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
 	public bool $updateUnmodified = false;
+	public bool $updateReferences = true;
 
 	public static function getPropertyMaxLength(string $className, string $propertyName): int
 	{

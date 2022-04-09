@@ -23,17 +23,19 @@ class Update extends Push
 
 	public function execute(\PDO $database)
 	{
-		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
-		if(!$this->model->updateUnmodified && empty($modifiedPropertiesNames))
-			return false;
-
-		$execute = parent::execute($database);
-
+		$execute = (!$this->model->updateUnmodified && empty($this->model->getModifiedPropertiesNames())) ? null : parent::execute($database);
 		if($execute)
 			$this->model->resetModifiedPropertiesNames();
 
-		echo $this->query;
+		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
+			if($referencedQuery instanceof Query\Composed)
+				$execute ??= $referencedQuery->prepare($database)->execute();
+			elseif($referencedQuery instanceof  ModelStatement) {
+				if($this->model->updateReferences)
+					$execute ??= $referencedQuery->execute($database);
+			}
+		}
 
-		return $execute;
+		return $execute ?? false;
 	}
 }

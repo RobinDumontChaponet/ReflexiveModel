@@ -20,8 +20,18 @@ class Create extends Push
 	{
 		$execute = parent::execute($database);
 
-		if($execute)
+		if($execute) {
 			$this->model->setId((int)$database->lastInsertId());
+
+			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
+				if($referencedQuery instanceof Query\Composed)
+					$referencedQuery->prepare($database)->execute();
+				elseif($referencedQuery instanceof  ModelStatement) {
+					if($this->model->updateReferences)
+						$referencedQuery->execute($database);
+				}
+			}
+		}
 
 		return $execute;
 	}

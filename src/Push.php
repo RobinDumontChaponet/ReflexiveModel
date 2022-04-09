@@ -16,7 +16,7 @@ use Reflexive\Core\Comparator;
  */
 abstract class Push extends ModelStatement
 {
-	private array $referencedQueries = [];
+	protected array $referencedQueries = [];
 
 	public function __construct(
 		protected Model &$model
@@ -29,7 +29,7 @@ abstract class Push extends ModelStatement
 		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
 		if($this->model->ignoreModifiedProperties || (!$this->model->ignoreModifiedProperties && !empty($modifiedPropertiesNames))) {
 			foreach($this->schema->getColumns() as $propertyName => $column) {
-				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || (isset($column['autoIncrement']) && $column['autoIncrement']))
+				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || (isset($column['autoIncrement']) && $column['autoIncrement']) || ($this->schema->hasReference($propertyName) && $this->schema->getReferenceCardinality($propertyName) === Cardinality::ManyToMany))
 					continue;
 
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
@@ -37,10 +37,8 @@ abstract class Push extends ModelStatement
 
 				if($propertyReflection->isInitialized($this->model)) {
 					$value = $propertyReflection->getValue($this->model);
-					// if(is_bool($value))
-					// 	$value = (int)$value;
 
-					if(null === $value && $this->schema->isColumnNullable($column['columnName'])) {
+					if(is_null($value) && $this->schema->isColumnNullable($column['columnName'])) {
 						$this->query->set($column['columnName'], null);
 					} elseif($type = $propertyReflection->getType()) {
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
@@ -85,26 +83,27 @@ abstract class Push extends ModelStatement
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from model "'.$propertyName.'"');
 				}
 			}
+		}
 
-			// echo '<pre>';
-			// echo $this->schema;
-			// echo '</pre>';
-
+		if($this->model->updateReferences) {
 			foreach($this->schema->getReferences() as $propertyName => $reference) {
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
 				$propertyReflection->setAccessible(true);
 
-				if(!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames))
-					continue;
-
 				switch($reference['cardinality']) {
 					case Cardinality::OneToMany:
+						if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)))
+							continue 2;
+
 						$value = $propertyReflection->getValue($this->model);
 						if(isset($reference['columnName']) && !is_null($value)) {
 							$this->query->set($reference['columnName'], $value->getId());
 						}
 					break;
 					case Cardinality::ManyToMany:
+						if(!$this->model->updateReferences)
+							continue 2;
+
 						$value = $propertyReflection->getValue($this->model);
 
 						if($value instanceof ModelCollection) { // TODO : this is temporary
@@ -142,15 +141,6 @@ abstract class Push extends ModelStatement
 	{
 		$statement = $this->query->prepare($database);
 		$execute = $statement->execute();
-
-		if($execute) {
-			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
-				if($referencedQuery instanceof Query\Composed)
-					$referencedQuery->prepare($database)->execute();
-				elseif($referencedQuery instanceof  ModelStatement)
-					$referencedQuery->execute($database);
-			}
-		}
 
 		return $execute;
 	}
