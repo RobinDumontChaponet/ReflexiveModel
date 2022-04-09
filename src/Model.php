@@ -15,6 +15,7 @@ abstract class Model implements \JsonSerializable
 	protected static array $setters = [];
 	protected static array $lengths = [];
 	protected static array $attributedProperties = [];
+	// public bool $autoInitializeProperties = true;
 
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
@@ -105,6 +106,13 @@ abstract class Model implements \JsonSerializable
 	private function &getValue(string $name): mixed
 	{
 		if(isset(static::$attributedProperties[static::class][$name])) {
+			if(property_exists($this, $name) && !isset($this->{$name})) {
+				$propertyReflection = new ReflectionProperty(static::class, $name);
+				$type = $propertyReflection->getType();
+				if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
+					$this->{$name} = new ModelCollection();
+			}
+
 			return $this->{$name};
 		}
 
@@ -137,13 +145,6 @@ abstract class Model implements \JsonSerializable
 		if(!isset(static::$attributedProperties[static::class][$name]))
 			return null;
 
-		if(is_null($this->{$name})) {
-			$propertyReflection = new ReflectionProperty(static::class, $name);
-			$type = $propertyReflection->getType();
-			if($type instanceof ReflectionNamedType && $type->getName() == 'Collection')
-				$this->{$name} = new ModelCollection();
-		}
-
 		return $this->getValue($name);
 	}
 
@@ -162,6 +163,9 @@ abstract class Model implements \JsonSerializable
 		if(isset(static::$getters[static::class][$name])) { // auto-getter
 			return $this->getValue(static::$getters[static::class][$name]);
 		} elseif(isset(static::$setters[static::class][$name])) { // auto-setter
+			if(empty($arguments))
+				$arguments = [null];
+
 			return $this->setValue(static::$setters[static::class][$name], ...$arguments);
 		} else {
 			set_error_handler(self::errorHandler());

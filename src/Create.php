@@ -23,6 +23,8 @@ class Create extends Push
 		if($execute) {
 			$this->model->setId((int)$database->lastInsertId());
 
+			$this->constructReferences();
+
 			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 				if($referencedQuery instanceof Query\Composed)
 					$referencedQuery->prepare($database)->execute();

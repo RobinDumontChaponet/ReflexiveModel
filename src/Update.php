@@ -15,6 +15,7 @@ class Update extends Push
 		// $this->where('id', Comparator::EQUAL, $model->getId());
 
 		parent::__construct($model);
+		$this->constructReferences();
 
 		if(isset($this->schema)) {
 			$this->query->where($this->schema->getUIdColumnName(), Comparator::EQUAL, $this->model->getId());

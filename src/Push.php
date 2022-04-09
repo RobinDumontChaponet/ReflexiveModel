@@ -35,12 +35,10 @@ abstract class Push extends ModelStatement
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
 				$propertyReflection->setAccessible(true);
 
-				if($propertyReflection->isInitialized($this->model)) {
+				if($propertyReflection->isInitialized($this->model) && null !== $propertyReflection->getValue($this->model)) {
 					$value = $propertyReflection->getValue($this->model);
 
-					if(is_null($value) && $this->schema->isColumnNullable($column['columnName'])) {
-						$this->query->set($column['columnName'], null);
-					} elseif($type = $propertyReflection->getType()) {
+					if($type = $propertyReflection->getType()) {
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								if($type->isBuiltin()) { // PHP builtin types
@@ -77,25 +75,29 @@ abstract class Push extends ModelStatement
 						}
 					}
 				} else {
-					if($this->schema->isColumnNullable($column['columnName']))
+					if($this->schema->isColumnNullable($propertyName))
 						$this->query->set($column['columnName'], null);
 					else
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from model "'.$propertyName.'"');
 				}
 			}
 		}
+	}
 
+	protected function constructReferences(): void
+	{
 		if($this->model->updateReferences) {
 			foreach($this->schema->getReferences() as $propertyName => $reference) {
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
 				$propertyReflection->setAccessible(true);
 
+				$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
+
 				switch($reference['cardinality']) {
 					case Cardinality::OneToMany:
-						if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)))
+						if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
 							continue 2;
 
-						$value = $propertyReflection->getValue($this->model);
 						if(isset($reference['columnName']) && !is_null($value)) {
 							$this->query->set($reference['columnName'], $value->getId());
 						}
@@ -104,12 +106,10 @@ abstract class Push extends ModelStatement
 						if(!$this->model->updateReferences)
 							continue 2;
 
-						$value = $propertyReflection->getValue($this->model);
-
 						if($value instanceof ModelCollection) { // TODO : this is temporary
 							foreach($value->getAddedKeys() as $addedKey) {
 								$referencedQuery = new Query\Insert();
-								$referencedQuery->set($reference['foreignColumnName'], $model->getId())
+								$referencedQuery->set($reference['foreignColumnName'], $this->model->getId())
 									->set($reference['foreignRightColumnName'], $addedKey)
 									->from($reference['foreignTableName']);
 
@@ -121,7 +121,7 @@ abstract class Push extends ModelStatement
 							}
 							foreach($value->getRemovedKeys() as $removedKey) {
 								$referencedQuery = new Query\Delete();
-								$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $model->getId())
+								$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $this->model->getId())
 									->and($reference['foreignRightColumnName'], Comparator::EQUAL, $removedKey)
 									->from($reference['foreignTableName']);
 
