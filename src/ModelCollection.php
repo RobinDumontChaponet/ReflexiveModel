@@ -190,6 +190,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		$this->fetchCurrent();
 	}
 
+	public function has(Model $model): bool
+	{
+		return isset($this[$model->getId()]);
+	}
+
 	/*
 	 * Implements ArrayAccess
 	 */
