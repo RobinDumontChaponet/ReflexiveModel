@@ -16,6 +16,7 @@ class Column
 		public readonly ?string $type = null,
 		public readonly ?bool $nullable = null,
 		public readonly bool $autoIncrement = false,
+		public readonly mixed $defaultValue = null,
 	)
 	{}
 }

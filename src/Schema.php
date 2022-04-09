@@ -397,7 +397,10 @@ class Schema implements \JsonSerializable
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
-								$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
+								if(!empty($modelAttribute->defaultValue))
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
+								else
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 
 								if($type->isBuiltin()) { // PHP builtin types
 									$className::initModelAttributes();

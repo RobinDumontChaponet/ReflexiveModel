@@ -77,7 +77,10 @@ abstract class Push extends ModelStatement
 				} else {
 					if($this->schema->isColumnNullable($propertyName))
 						$this->query->set($column['columnName'], null);
-					else
+					elseif(null !== $defaultValue = $this->schema->getColumnDefaultValue($propertyName)) {
+						if(!in_array(strtoupper($defaultValue), ['NOW()', 'CURRENT_TIMESTAMP']))
+							$this->query->set($column['columnName'], $defaultValue);
+					} else
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from model "'.$propertyName.'"');
 				}
 			}
