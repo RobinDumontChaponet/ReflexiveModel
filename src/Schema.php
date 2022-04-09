@@ -59,7 +59,7 @@ class Schema implements \JsonSerializable
 
 	public function getColumnNames(): array
 	{
-		return array_map(fn($value): string => $this->tableName.$value, $this->columnNames);
+		return array_values(array_map(fn($value): string => $this->tableName.'.'.$value, $this->columnNames));
 	}
 
 	public function getColumnName(int|string $key): ?string

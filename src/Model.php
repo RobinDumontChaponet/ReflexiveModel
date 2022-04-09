@@ -6,6 +6,7 @@ namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
 use ReflectionClass;
+use ReflectionProperty;
 use ReflectionNamedType;
 
 abstract class Model implements \JsonSerializable
@@ -27,6 +28,11 @@ abstract class Model implements \JsonSerializable
 	public function getModifiedPropertiesNames(): array
 	{
 		return array_unique($this->modifiedProperties);
+	}
+
+	public function hasModifiedProperties(): bool
+	{
+		return !empty($this->modifiedProperties);
 	}
 
 	public function resetModifiedPropertiesNames(): void
@@ -95,7 +101,7 @@ abstract class Model implements \JsonSerializable
         ];
     }
 
-	private function getValue(string $name): mixed
+	private function &getValue(string $name): mixed
 	{
 		if(isset(static::$attributedProperties[static::class][$name])) {
 			return $this->{$name};
@@ -125,8 +131,18 @@ abstract class Model implements \JsonSerializable
 		}
 	}
 
-	function __get(string $name): mixed
+	function &__get(string $name): mixed
 	{
+		if(!isset(static::$attributedProperties[static::class][$name]))
+			return null;
+
+		if(is_null($this->{$name})) {
+			$propertyReflection = new ReflectionProperty(static::class, $name);
+			$type = $propertyReflection->getType();
+			if($type instanceof ReflectionNamedType && $type->getName() == 'Collection')
+				$this->{$name} = new ModelCollection();
+		}
+
 		return $this->getValue($name);
 	}
 

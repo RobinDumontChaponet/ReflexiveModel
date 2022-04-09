@@ -11,6 +11,9 @@ use ReflectionIntersectionType;
 use Reflexive\Query;
 use Reflexive\Core\Comparator;
 
+/**
+ * @property Query\Push query
+ */
 abstract class Push extends ModelStatement
 {
 	private array $referencedQueries = [];
@@ -113,6 +116,10 @@ abstract class Push extends ModelStatement
 
 								$this->referencedQueries[] = $referencedQuery;
 							}
+							foreach($value->getModifiedKeys() as $modifiedKey) {
+								$referencedQuery = $reference['type']::update($value[$modifiedKey]);
+								$this->referencedQueries[] = $referencedQuery;
+							}
 							foreach($value->getRemovedKeys() as $removedKey) {
 								$referencedQuery = new Query\Delete();
 								$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $model->getId())
@@ -138,7 +145,10 @@ abstract class Push extends ModelStatement
 
 		if($execute) {
 			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
-				$referencedQuery->prepare($database)->execute();
+				if($referencedQuery instanceof Query\Composed)
+					$referencedQuery->prepare($database)->execute();
+				elseif($referencedQuery instanceof  ModelStatement)
+					$referencedQuery->execute($database);
 			}
 		}
 

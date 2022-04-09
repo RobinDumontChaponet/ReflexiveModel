@@ -25,6 +25,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private array $objects = [];
 
 	private array $addedKeys = [];
+	private array $modifiedKeys = [];
 	private array $removedKeys = [];
 
 	// global cache ?
@@ -234,18 +235,22 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function offsetSet(mixed $key, mixed $object): void
 	{
-		if(isset($this[$key]))
+		if(isset($key) && isset($this[$key])) { // already in collection
+			if($object->hasModifiedProperties() && !in_array($key, $this->modifiedKeys)) { // is modified
+				$this->modifiedKeys[] = $key;
+			}
 			return;
+		}
 
 		if(is_null($key)) {
 			$this->objects[] = $object;
-			$this->addedKeys[] = array_key_last($this->objects);
-		} else {
-			$this->objects[$key] = $object;
-
-			if(!in_array($key, $this->addedKeys))
-				$this->addedKeys[] = $key;
+			$key = array_key_last($this->objects);
 		}
+
+		$this->objects[$key] = $object;
+		if(!in_array($key, $this->addedKeys))
+			$this->addedKeys[] = $key;
+
 		$this->count++;
 	}
 
@@ -255,8 +260,16 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			unset($this->objects[$key]);
 			unset($this->keys[array_search($key, $this->keys)]);
 
-			$this->removedKeys[] = $key;
+			if(in_array($key, $this->addedKeys)) {
+				unset($this->addedKeys[$key]);
+			} else {
+				if(!in_array($key, $this->removedKeys))
+					$this->removedKeys[] = $key;
+			}
 			$this->count--;
+
+			if(in_array($key, $this->modifiedKeys))
+				unset($this->modifiedKeys[$key]);
 
 			$this->keys = array_values($this->keys); // re-index
 		}
@@ -270,6 +283,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return $this->addedKeys;
 	}
 
+	public function getModifiedKeys(): array
+	{
+		return $this->modifiedKeys;
+	}
+
 	public function getRemovedKeys(): array
 	{
 		return $this->removedKeys;
@@ -277,7 +295,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function getModifiedCount(): int
 	{
-		return count($this->addedKeys) + count($this->removedKeys);
+		return count($this->addedKeys) + count($this->modifiedKeys) + count($this->removedKeys);
 	}
 
 	/*

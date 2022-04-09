@@ -38,10 +38,9 @@ abstract class ModelStatement
 		if(isset($schema)) {
 			if(!isset(self::$instanciators[$this->modelClassName])) {
 				$classReflection = new ReflectionClass($this->modelClassName);
-				$modelClassName = $this->modelClassName;
 
 				// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
-				self::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema, $modelClassName) {
+				self::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema) {
 					$this->modelClassName::initModelAttributes();
 					$object = $classReflection->newInstanceWithoutConstructor();
 					$object->setId($rs->id);
