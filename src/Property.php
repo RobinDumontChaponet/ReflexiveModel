@@ -13,7 +13,7 @@ class Property
 		public readonly bool|string $makeGetter = true,
 		public readonly bool|string $makeSetter = true,
 		public readonly int $maxLength = 0,
-		public readonly bool $readonly = false,
+		public readonly bool $readOnly = false,
 	)
 	{}
 }
