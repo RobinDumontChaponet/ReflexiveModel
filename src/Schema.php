@@ -398,6 +398,11 @@ class Schema implements \JsonSerializable
 							foreach($types as $type) {
 								$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
 
+								if(!empty($modelAttribute->defaultValue))
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
+								elseif($propertyReflection->hasDefaultValue())
+									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
+
 								if($type->isBuiltin()) { // PHP builtin types
 									$className::initModelAttributes();
 									$maxLength = Model::getPropertyMaxLength($className, $propertyReflection->getName());
@@ -435,7 +440,7 @@ class Schema implements \JsonSerializable
 												$propertyReflection->getName(),
 												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
 											);
-											if($propertyReflection->hasDefaultValue())
+											if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
 												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->value);
 											break;
 										} else {
@@ -450,11 +455,6 @@ class Schema implements \JsonSerializable
 										}
 									}
 								}
-
-								if(!empty($modelAttribute->defaultValue))
-									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
-								elseif($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
-									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 							}
 						} else {
 							var_dump('NO TYPE ?');
