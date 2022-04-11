@@ -280,6 +280,21 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 	}
 
+	public function unsetAll(bool $keepObjects = true): int
+	{
+		if(!$this->exhausted && $this->autoExecute)
+			$this->cacheAll();
+
+		$count = count($this->addedKeys) + count($this->modifiedKeys) + count($this->keys);
+		$this->removedKeys += $this->addedKeys + $this->modifiedKeys + $this->keys;
+
+		$this->addedKeys = $this->modifiedKeys = $this->keys = [];
+		if(!$keepObjects)
+			$this->objects = [];
+
+		return $count;
+	}
+
 	/*
 	 * Get what has changed by ArrayAccesses
 	 */
