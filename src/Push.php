@@ -84,57 +84,57 @@ abstract class Push extends ModelStatement
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from model "'.$propertyName.'"');
 				}
 			}
+
+			foreach($this->schema->getReferences() as $propertyName => $reference) {
+				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
+				$propertyReflection->setAccessible(true);
+
+
+				if($reference['cardinality'] === Cardinality::OneToMany) {
+					if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
+						continue;
+
+					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
+					if(isset($reference['columnName']) && !is_null($value)) {
+						$this->query->set($reference['columnName'], $value->getId());
+					}
+				}
+			}
 		}
 	}
 
-	protected function constructReferences(): void
+	protected function constructOuterReferences(): void
 	{
 		if($this->model->updateReferences) {
 			foreach($this->schema->getReferences() as $propertyName => $reference) {
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
 				$propertyReflection->setAccessible(true);
 
-				$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
+				if($reference['cardinality'] === Cardinality::ManyToMany) {
+					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
 
-				switch($reference['cardinality']) {
-					case Cardinality::OneToMany:
-						if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
-							continue 2;
+					if($value instanceof ModelCollection) { // TODO : this is temporary
+						foreach($value->getAddedKeys() as $addedKey) {
+							$referencedQuery = new Query\Insert();
+							$referencedQuery->set($reference['foreignColumnName'], $this->model->getId())
+								->set($reference['foreignRightColumnName'], $addedKey)
+								->from($reference['foreignTableName']);
 
-						if(isset($reference['columnName']) && !is_null($value)) {
-							$this->query->set($reference['columnName'], $value->getId());
+							$this->referencedQueries[] = $referencedQuery;
 						}
-					break;
-					case Cardinality::ManyToMany:
-						if(!$this->model->updateReferences)
-							continue 2;
-
-						if($value instanceof ModelCollection) { // TODO : this is temporary
-							foreach($value->getAddedKeys() as $addedKey) {
-								$referencedQuery = new Query\Insert();
-								$referencedQuery->set($reference['foreignColumnName'], $this->model->getId())
-									->set($reference['foreignRightColumnName'], $addedKey)
-									->from($reference['foreignTableName']);
-
-								$this->referencedQueries[] = $referencedQuery;
-							}
-							foreach($value->getModifiedKeys() as $modifiedKey) {
-								$referencedQuery = $reference['type']::update($value[$modifiedKey]);
-								$this->referencedQueries[] = $referencedQuery;
-							}
-							foreach($value->getRemovedKeys() as $removedKey) {
-								$referencedQuery = new Query\Delete();
-								$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $this->model->getId())
-									->and($reference['foreignRightColumnName'], Comparator::EQUAL, $removedKey)
-									->from($reference['foreignTableName']);
-
-								$this->referencedQueries[] = $referencedQuery;
-							}
+						foreach($value->getModifiedKeys() as $modifiedKey) {
+							$referencedQuery = $reference['type']::update($value[$modifiedKey]);
+							$this->referencedQueries[] = $referencedQuery;
 						}
-					break;
-					default:
-						// var_dump($reference);
-					break;
+						foreach($value->getRemovedKeys() as $removedKey) {
+							$referencedQuery = new Query\Delete();
+							$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $this->model->getId())
+								->and($reference['foreignRightColumnName'], Comparator::EQUAL, $removedKey)
+								->from($reference['foreignTableName']);
+
+							$this->referencedQueries[] = $referencedQuery;
+						}
+					}
 				}
 			}
 		}

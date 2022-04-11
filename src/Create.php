@@ -23,7 +23,7 @@ class Create extends Push
 		if($execute) {
 			$this->model->setId((int)$database->lastInsertId());
 
-			$this->constructReferences();
+			$this->constructOuterReferences();
 
 			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 				if($referencedQuery instanceof Query\Composed)
@@ -33,7 +33,9 @@ class Create extends Push
 						$referencedQuery->execute($database);
 				}
 			}
+			$this->model->resetModifiedPropertiesNames();
 		}
+
 
 		return $execute;
 	}

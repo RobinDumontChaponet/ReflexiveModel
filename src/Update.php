@@ -15,7 +15,7 @@ class Update extends Push
 		// $this->where('id', Comparator::EQUAL, $model->getId());
 
 		parent::__construct($model);
-		$this->constructReferences();
+		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {
 			$this->query->where($this->schema->getUIdColumnName(), Comparator::EQUAL, $this->model->getId());
@@ -25,8 +25,6 @@ class Update extends Push
 	public function execute(\PDO $database)
 	{
 		$execute = (!$this->model->updateUnmodified && empty($this->model->getModifiedPropertiesNames())) ? null : parent::execute($database);
-		if($execute)
-			$this->model->resetModifiedPropertiesNames();
 
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 			if($referencedQuery instanceof Query\Composed)
@@ -36,6 +34,9 @@ class Update extends Push
 					$execute ??= $referencedQuery->execute($database);
 			}
 		}
+
+		if($execute)
+			$this->model->resetModifiedPropertiesNames();
 
 		return $execute ?? false;
 	}
