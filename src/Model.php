@@ -128,7 +128,7 @@ abstract class Model implements \JsonSerializable
 	{
 		if(isset(static::$attributedProperties[static::class][$name])) {
 			if(static::$attributedProperties[static::class][$name]) {
-				if($this->{$name} ?? null !== $value)
+				if(($this->{$name} ?? null) !== $value)
 					$this->modifiedProperties[] = $name;
 
 				$this->{$name} = $value;
