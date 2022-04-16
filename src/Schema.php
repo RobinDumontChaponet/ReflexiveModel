@@ -9,6 +9,8 @@ use ReflectionUnionType;
 use ReflectionIntersectionType;
 
 use Composer\Script\Event;
+use ReflectionEnum;
+use ReflectionNamedType;
 
 class Schema implements \JsonSerializable
 {
@@ -26,7 +28,7 @@ class Schema implements \JsonSerializable
 	 * $columnNames[string propertyName] = string columnName;
 	 */
 	protected array $columnNames = [];
-	protected ?string $uIdColumnName = null;
+	protected ?string $uIdPropertyName = null;
 	/*
 	 * $references[string propertyName] = [
 		 'tableName' => string,
@@ -35,6 +37,7 @@ class Schema implements \JsonSerializable
 	 ];
 	 */
 	protected array $references = [];
+	protected bool $enum = false;
 
 	protected bool $complete = false;
 
@@ -81,20 +84,24 @@ class Schema implements \JsonSerializable
 
 	public function getUIdColumnName(): ?string
 	{
-		return $this->uIdColumnName;
+		return $this->getColumnName($this->uIdPropertyName);
 	}
-	public function setUIdColumnName(string $name): void
+	public function getUIdPropertyName(): ?string
 	{
-		$this->uIdColumnName = $name;
+		return $this->uIdPropertyName;
+	}
+	public function setUIdPropertyName(string $name): void
+	{
+		$this->uIdPropertyName = $name;
 	}
 	public function hasUId(): bool
 	{
-		return isset($this->uIdColumnName);
+		return isset($this->uIdPropertyName) && $this->hasColumn($this->uIdPropertyName);
 	}
 
 	public function getUIdColumnType(): ?string
 	{
-		return $this->getColumnType($this->uIdColumnName);
+		return $this->getColumnType($this->uIdPropertyName);
 	}
 
 	public function hasReference(int|string $key): bool
@@ -343,6 +350,15 @@ class Schema implements \JsonSerializable
 		return $this->tableName;
 	}
 
+	public function setEnum(bool $state = true): void
+	{
+		$this->enum = $state;
+	}
+	public function isEnum(): bool
+	{
+		return $this->enum;
+	}
+
 	public function isComplete(): bool
 	{
 		return $this->complete;
@@ -358,7 +374,7 @@ class Schema implements \JsonSerializable
 		return [
 			'complete' => $this->complete,
 			'tableName' => $this->tableName,
-			'uIdColumnName' => $this->uIdColumnName,
+			'uIdProperty' => $this->uIdProperty,
 			'columns' => $this->columns,
 			'references' => $this->references,
 		];
@@ -478,7 +494,7 @@ class Schema implements \JsonSerializable
 				}
 
 				if(isset($modelAttribute->isId) && $modelAttribute->isId) {
-					$schema->setUIdColumnName($propertyReflection->getName());
+					$schema->setUIdPropertyName($propertyReflection->getName());
 				}
 			}
 		}
@@ -583,6 +599,115 @@ class Schema implements \JsonSerializable
 		}
 	}
 
+	// private static function reflectColumnMethodsAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
+	// {
+	// 	foreach($reflection->getProperties() as $propertyReflection) {
+	// 		foreach($propertyReflection->getAttributes(Column::class) as $attributeReflection) {
+	// 			if($schema->hasColumn($propertyReflection->getName()))
+	// 				continue;
+	//
+	// 			$modelAttribute = $attributeReflection->newInstance();
+	//
+	// 			if(!empty($modelAttribute->name))
+	// 				$schema->setColumnName($propertyReflection->getName(), $modelAttribute->name);
+	// 			elseif($schema->useModelNames)
+	// 				$schema->setColumnName($propertyReflection->getName(), $propertyReflection->getName());
+	//
+	// 			if(!empty($modelAttribute->type))
+	// 				$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
+	// 			else {
+	// 				// should infer type in DB from type in Model. So instanciator should be known here. Or should it ?
+	// 				if($type = $propertyReflection->getType()) {
+	// 					if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
+	// 						foreach($types as $type) {
+	// 							$schema->setColumnNullable($propertyReflection->getName(), $type->allowsNull());
+	//
+	// 							if(!empty($modelAttribute->defaultValue))
+	// 								$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
+	// 							elseif($propertyReflection->hasDefaultValue())
+	// 								$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
+	//
+	// 							if($type->isBuiltin()) { // PHP builtin types
+	// 								$className::initModelAttributes();
+	// 								$maxLength = Model::getPropertyMaxLength($className, $propertyReflection->getName());
+	//
+	// 								$schema->setColumnType(
+	// 									$propertyReflection->getName(),
+	// 									match($type->getName()) {
+	// 										'int' => $maxLength ? 'INT('.$maxLength.')' :'INT',
+	// 										'bool' => 'TINYINT(1)',
+	// 										'double', 'float' => 'DOUBLE',
+	// 										'string' => $maxLength ? 'VARCHAR('.$maxLength.')' :'TEXT',
+	// 										default => 'TEXT'
+	// 								});
+	// 								break;
+	// 							} else {
+	// 								$typeName = $type->getName();
+	//
+	// 								// if($typeName == 'Reflexive\Model\Collection') {
+	// 								// 	break;
+	// 								// }
+	//
+	// 								if(class_exists($typeName)) { // object
+	// 									// foreach($propertyReflection->getAttributes(Reference::class) as $referenceReflection) {
+	// 									// 	static::reflectReferencePropertiesAttribute($referenceReflection->newInstance(), $schema, $className, $propertyReflection->getName());
+	// 									// }
+	// 									// if($schema->hasReference($propertyReflection->getName())) {
+	// 									// 	$schema->setColumnType(
+	// 									// 		$propertyReflection->getName(),
+	// 									// 		'BIGINT'
+	// 									// 	);
+	// 									// 	break;
+	// 									// } else
+	// 									if(enum_exists($typeName)) { // PHP enum
+	// 										$schema->setColumnType(
+	// 											$propertyReflection->getName(),
+	// 											'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
+	// 										);
+	// 										if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
+	// 											$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->value);
+	// 										break;
+	// 									} else {
+	// 										$schema->setColumnType(
+	// 											$propertyReflection->getName(),
+	// 											match($typeName) {
+	// 												'DateTime' => 'DATETIME',
+	// 												default => ''
+	// 											}
+	// 										);
+	// 										break;
+	// 									}
+	// 								}
+	// 							}
+	// 						}
+	// 					} else {
+	// 						var_dump('NO TYPE ?');
+	// 					}
+	// 				} else {
+	// 					var_dump('NO TYPE ?');
+	// 				}
+	// 			}
+	//
+	// 			if(!empty($modelAttribute->nullable))
+	// 				$schema->setColumnNullable($propertyReflection->getName(), $modelAttribute->nullable);
+	//
+	// 			if(!empty($modelAttribute->unique))
+	// 				$schema->setColumnUnique($propertyReflection->getName(), $modelAttribute->unique);
+	// 			else {
+	// 				// should infer unique from ?.
+	// 			}
+	//
+	// 			if(!empty($modelAttribute->autoIncrement)) {
+	// 				$schema->setColumnAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
+	// 			}
+	//
+	// 			if(isset($modelAttribute->isId) && $modelAttribute->isId) {
+	// 				$schema->setUIdPropertyName($propertyReflection->getName());
+	// 			}
+	// 		}
+	// 	}
+	// }
+
 	public static function initFromAttributes(string $className): ?static
 	{
 		$schema = static::$schemas[$className] ?? null;
@@ -612,31 +737,50 @@ class Schema implements \JsonSerializable
 
 				if(isset($schema)) {
 					$schema->useModelNames = $useModelNames;
-					// get attributes of traits properties
-					foreach($classReflection->getTraits() as $traitReflection) {
-						static::reflectPropertiesAttributes($traitReflection, $schema, $className);
-					}
 
-					// get attributes of properties
-					static::reflectPropertiesAttributes($classReflection, $schema, $className);
+					if($classReflection->isEnum()) { // is enum
+						$schema->setEnum(true);
+						$enumReflection = new ReflectionEnum($className);
+						$schema->setColumnName('value', 'id');
+						$schema->setUIdPropertyName('value');
 
-					foreach(array_keys($schema->getReferences()) as $key) {
-						if($schema->hasColumn($key)) {
-							$schema->setReferenceColumnName($key, $schema->getColumnName($key));
+						$cases = $className::cases();
+						$type = $enumReflection->getBackingType();
+						if(!$type || $type instanceof ReflectionNamedType && $type->getName() == 'string') {
+							$schema->setColumnType('value', 'VARCHAR('.max(array_map(fn ($case) => strlen($case->value ?? $case->name), $cases)).')');
+						} else {
+							$type = '';
+							$values = array_map(fn ($case) => $case->value, $cases);
+							$schema->setColumnType('value', self::dbIntegerSize(min($values), max($values)));
+						}
 
-							if(is_null($schema->isReferenceNullable($key)))
-								$schema->setReferenceNullable($key, $schema->isColumnNullable($key));
+					} else { // is Model
+						// get attributes of traits properties
+						foreach($classReflection->getTraits() as $traitReflection) {
+							static::reflectPropertiesAttributes($traitReflection, $schema, $className);
+						}
 
-// 							if($schema->isReferenceInverse($key)) {
-// 								$columnName = $schema->getColumnName($key);
-// 								$schema->setReferenceColumnName($columnName, $columnName);
-//
-// 								$schema->setReferenceType($columnName, $className);
-// 								$schema->setReferenceCardinality($columnName, $schema->getReferenceCardinality($key));
-// 								$schema->setReferenceNullable($columnName, $schema->isReferenceNullable($key));
-// 							}
+						// get attributes of properties
+						static::reflectPropertiesAttributes($classReflection, $schema, $className);
 
-							$schema->unsetColumn($key);
+						foreach(array_keys($schema->getReferences()) as $key) {
+							if($schema->hasColumn($key)) {
+								$schema->setReferenceColumnName($key, $schema->getColumnName($key));
+
+								if(is_null($schema->isReferenceNullable($key)))
+									$schema->setReferenceNullable($key, $schema->isColumnNullable($key));
+
+	// 							if($schema->isReferenceInverse($key)) {
+	// 								$columnName = $schema->getColumnName($key);
+	// 								$schema->setReferenceColumnName($columnName, $columnName);
+	//
+	// 								$schema->setReferenceType($columnName, $className);
+	// 								$schema->setReferenceCardinality($columnName, $schema->getReferenceCardinality($key));
+	// 								$schema->setReferenceNullable($columnName, $schema->isReferenceNullable($key));
+	// 							}
+
+								$schema->unsetColumn($key);
+							}
 						}
 					}
 
@@ -662,7 +806,7 @@ class Schema implements \JsonSerializable
 		return self::$schemas;
 	}
 
-	public function dumpSQL(?string $className = null): string
+	public function dumpSQL(string $className): string
 	{
 		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
 
@@ -675,10 +819,12 @@ class Schema implements \JsonSerializable
 			if($this->hasColumnDefaultValue($propertyName)) {
 				$str.= ' DEFAULT ';
 				$defaultValue = $this->getColumnDefaultValue($propertyName);
-				$str.= match(gettype($defaultValue)) {
+				$defaultValueType = gettype($defaultValue);
+				$str.= match($defaultValueType) {
 					'int', 'double', 'float' => $defaultValue,
 					'boolean' => (int)$defaultValue,
 					'string' => '\''.$defaultValue.'\'',
+					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->value.'\'':'NULL',
 				};
 			}
 			$str.= $this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'';
@@ -704,7 +850,7 @@ class Schema implements \JsonSerializable
 			$str.= 'ON UPDATE CASCADE, ';
 		}
 
-		return rtrim($str, ', ').') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
+		return rtrim($str, ', ').') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ' .self::dumpEnumModelsValuesSQL($className);
 	}
 
 	public function dumpReferencesSQL(): array
@@ -742,6 +888,24 @@ class Schema implements \JsonSerializable
 		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignRightColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnName() .'`) ON DELETE CASCADE ON UPDATE CASCADE';
 
 		return $str.') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
+	}
+
+	public function dumpEnumModelsValuesSQL(string $className): ?string
+	{
+		$schema = self::initFromAttributes($className);
+		if(empty($schema) || !$schema->isEnum())
+			return null;
+
+		$str = 'INSERT INTO `'. $this->getTableName() .'` (`'.$schema->getColumnName('value').'`) VALUES ';
+
+		foreach($className::cases() as $case) {
+			if(str_ends_with($schema->getColumnType('value'), 'INT'))
+				$str.= '('.$case->value.'), ';
+			else
+				$str.= '(\''.($case->value ?? $case->name).'\'), ';
+		}
+
+		return rtrim($str, ', ').'; ';
 	}
 
 	public static function export(Event $event)
@@ -820,5 +984,24 @@ class Schema implements \JsonSerializable
 		$io->writeRaw('-- End of export --', true);
 
 		// $io->writeRaw(json_encode(self::getCache(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT), true);
+	}
+
+	private static function dbIntegerSize(int $min, int $max): string
+	{
+		$intSizes = [
+			'TINYINT' => 255,
+			'SMALLINT' => 65535,
+			'MEDIUMINT' => 16777215,
+			'INT' => 4294967295,
+			'BIGINT' => 18446744073709551615,
+		];
+		foreach($intSizes as $typeName => $maxValue) {
+			if($min >= 0 && $max <= $maxValue) {
+				return $typeName.' UNSIGNED';
+			} elseif($min >= -ceil($maxValue/2) && $max <= floor($maxValue/2))
+				return $typeName;
+		}
+
+		throw new \InvalidArgumentException('Integer overflow', 500);
 	}
 }
