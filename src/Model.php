@@ -96,6 +96,17 @@ abstract class Model implements \JsonSerializable
         return  static::class.' [ id: '.$this->id.(((!get_parent_class())) ? ' ]' : ';  ');
     }
 
+	public function __debugInfo(): array
+	{
+		$array = get_object_vars($this);
+		unset($array['modifiedProperties']);
+		unset($array['ignoreModifiedProperties']);
+		unset($array['updateUnmodified']);
+		unset($array['updateReferences']);
+
+		return $array;
+	}
+
     public function jsonSerialize(): mixed
     {
         return [

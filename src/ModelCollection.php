@@ -12,6 +12,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public bool $autoClose = true;
 	public bool $fetchAbsolute = false; // fetch using FETCH_ORI_ABS for lists. Only works when dbDriver supports scrollable cursor.
 
+	public static bool $debugInfo = false;
+
 	// Internal counters
 	private int $count = 0;
 
@@ -51,22 +53,22 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	{
 		$this->cacheAll();
 
+		$array = get_object_vars($this);
+		unset($array['statement']);
+		unset($array['generator']);
+		unset($array['database']);
+
+		return array_keys($array);
+	}
+
+	public function __debugInfo(): array
+	{
+		if(static::$debugInfo)
+			return get_object_vars($this);
+
 		return [
-			'cache',
-			'autoExecute',
-			'autoClose',
-			'fetchAbsolute',
-			'count',
-			'index',
-			'lastKey',
-			'valid',
-			'keys',
-			'objects',
-			'exhausted',
-			'reset',
-			'isList',
-			'limit',
-			'offset',
+			'exhausted' => $this->exhausted,
+			'objects' => $this->objects,
 		];
 	}
 
