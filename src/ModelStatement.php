@@ -23,6 +23,7 @@ abstract class ModelStatement
 
 	// global caches ?
 	protected static array $instanciators = [];
+	public static int $instanciationCount = 0;
 
 	// private ?\PDO $database;
 
@@ -107,7 +108,10 @@ abstract class ModelStatement
 									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::OneToMany:
-									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									if($referencedSchema->isEnum())
+										$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
+									else
+										$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::ManyToOne:
 									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
@@ -122,7 +126,7 @@ abstract class ModelStatement
 						}
 					}
 
-					$_POST['count']++;
+					self::$instanciationCount++;
 
 					return [$rs->id, $object];
 				};
