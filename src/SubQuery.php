@@ -8,7 +8,7 @@ use Attribute;
 use Reflexive\Query\Simple;
 
 #[Attribute(Attribute::TARGET_PROPERTY)]
-class Reference
+class SubQuery
 {
 	public function __construct(
 		public readonly Simple $query,
