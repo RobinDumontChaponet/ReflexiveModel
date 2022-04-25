@@ -81,6 +81,11 @@ abstract class Model implements \JsonSerializable
 		static::initModelAttributes();
 	}
 
+	public function __wakeup()
+	{
+		static::initModelAttributes();
+	}
+
     public function getId(): int|string
     {
         return $this->id;
@@ -155,9 +160,6 @@ abstract class Model implements \JsonSerializable
 
 	function &__get(string $name): mixed
 	{
-		if(!isset(static::$attributedProperties[static::class][$name]))
-			return null;
-
 		return $this->getValue($name);
 	}
 

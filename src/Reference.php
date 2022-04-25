@@ -6,7 +6,7 @@ namespace Reflexive\Model;
 
 use Attribute;
 
-#[Attribute(Attribute::TARGET_PROPERTY)]
+#[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_CLASS_CONSTANT)]
 class Reference
 {
 	public function __construct(

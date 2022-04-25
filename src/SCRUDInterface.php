@@ -2,17 +2,21 @@
 
 namespace Reflexive\Model;
 
-use Reflexive\Query\Operator;
+use Reflexive\Core\Comparator;
 
 interface SCRUDInterface
 {
-	public static function search(array $on, Operator $combinator = Operator::OR, int $limit = null, int $offset = null): Collection;
+	public function getId(): int|string;
 
-    public static function create(Model &$object);
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement;
 
-	public static function read(array $on, Operator $combinator = Operator::OR, int $limit = null, int $offset = null): ?Model;
+	public static function create(Model &$model): ModelStatement;
 
-    public static function update(Model &$object);
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement;
 
-    public static function delete(Model $object);
+	public static function update(Model &$model): ModelStatement;
+
+	public static function delete(Model &$model): ModelStatement;
+
+	public static function count(): ModelStatement;
 }

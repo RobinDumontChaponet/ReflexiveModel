@@ -192,7 +192,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		$this->fetchCurrent();
 	}
 
-	public function has(Model $model): bool
+	public function has(SCRUDInterface $model): bool
 	{
 		return isset($this[$model->getId()]);
 	}
