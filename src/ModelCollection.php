@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use Closure;
+use PDO;
+use PDOStatement;
+
 class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 {
 	// Parameters
@@ -39,11 +43,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private bool $isList = false;
 
 	public function __construct(
-		private ?\PDOStatement $statement = null,
-		private ?\Closure $generator = null,
+		private ?PDOStatement $statement = null,
+		private ?Closure $generator = null,
 		private ?int $limit = null, // used to determine if is list
 		private int $offset = 0, // used to determine if is list
-		private ?\PDO $database = null, // used for subsequent queries if any
+		private ?PDO $database = null, // used for subsequent queries if any
 	)
 	{
 		$this->init();
@@ -128,8 +132,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			return [$key, $this->objects[$key]];
 		} elseif(!empty($this->statement)) { // not yet in cache
 			$rs = $this->statement->fetch(
-				\PDO::FETCH_OBJ,
-				\PDO::FETCH_ORI_ABS,
+				PDO::FETCH_OBJ,
+				PDO::FETCH_ORI_ABS,
 				$index
 			);
 
@@ -179,8 +183,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(!$this->valid) {
 			$this->exhausted = true;
 
-			if($this->autoClose)
-				$this->statement?->closeCursor();
+			if($this->autoClose && isset($this->statement))
+				$this->statement->closeCursor();
 		}
 
 		return $this->valid;
@@ -194,7 +198,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function has(SCRUDInterface $model): bool
 	{
-		return isset($this[$model->getId()]);
+		if(enum_exists($model::class)) {
+			$this->count = count($this->objects);
+			return isset($this[$model->name]);
+		} else
+			return isset($this[$model->getId()]);
 	}
 
 	/*
@@ -218,14 +226,14 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			$this->execute();
 		}
 
-		if($this->fetchAbsolute && $this->isList) {
+		if($this->fetchAbsolute && $this->isList && is_int($key)) {
 			[, $object] = $this->fetch($key-1);
 			return $object;
 		} else {
 			if(!$this->exhausted) {
 				for(
-					$i = (($this->isList && $key>=count($this->keys))? count($this->keys) : $this->offset);
-					$i <= ($this->isList ? $key : $this->limit ?? $this->count);
+					$i = (($this->isList && is_int($key) && $key>=count($this->keys))? count($this->keys) : $this->offset);
+					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count);
 					$i++
 				) {
 					[$k,] = $this->fetch($i);

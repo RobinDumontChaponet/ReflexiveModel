@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use Closure;
 use Reflexive\Core\Comparator;
 use Reflexive\Query;
 use ReflectionClass;
@@ -130,7 +131,7 @@ abstract class ModelStatement
 
 						return [$rs->id, $object];
 
-					} elseif(is_a($this->modelClassName, SCRUDInterface::class, true)) {
+					} elseif(enum_exists($this->modelClassName) && is_a($this->modelClassName, SCRUDInterface::class, true)) { // is ModelEnum
 						return [$rs->{$schema->getColumnName('value')}, $this->modelClassName::from($rs->{$schema->getColumnName('value')})];
 					} else {
 						throw new \Exception('ModelStatement does not know how to create "'.$this->modelClassName.'".');
@@ -246,4 +247,11 @@ abstract class ModelStatement
 
 		return $this->query;
 	}
+
+// 	public function getInstanciator(): ?Closure
+// 	{
+// 		$this->initSchema();
+//
+// 		return self::$instanciators[$this->modelClassName] ?? null;
+// 	}
 }
