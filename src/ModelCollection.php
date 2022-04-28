@@ -118,7 +118,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			$this->execute();
 		}
 
-		if(!empty($this->statement))
+		if(!empty($this->statement) || $this->cache)
 			[$this->lastKey, $this->lastObject] = $this->fetch($this->index);
 
 		$this->valid = !empty($this->lastObject);
