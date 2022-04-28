@@ -374,7 +374,7 @@ class Schema implements \JsonSerializable
 		return [
 			'complete' => $this->complete,
 			'tableName' => $this->tableName,
-			'uIdProperty' => $this->uIdProperty,
+			'uIdPropertyName' => $this->uIdPropertyName,
 			'columns' => $this->columns,
 			'references' => $this->references,
 		];
