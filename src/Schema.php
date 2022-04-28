@@ -373,6 +373,7 @@ class Schema implements \JsonSerializable
 	{
 		return [
 			'complete' => $this->complete,
+			'isEnum' => $this->enum,
 			'tableName' => $this->tableName,
 			'uIdPropertyName' => $this->uIdPropertyName,
 			'columns' => $this->columns,
@@ -454,7 +455,7 @@ class Schema implements \JsonSerializable
 										if(enum_exists($typeName)) { // PHP enum
 											$schema->setColumnType(
 												$propertyReflection->getName(),
-												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
+												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->name.'\'', $typeName::cases())).')'
 											);
 											if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
 												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->value);
@@ -647,7 +648,7 @@ class Schema implements \JsonSerializable
 										if(enum_exists($typeName)) { // PHP enum
 											$schema->setColumnType(
 												$methodReflection->getName(),
-												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->value.'\'', $typeName::cases())).')'
+												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->name.'\'', $typeName::cases())).')'
 											);
 											break;
 										} else {
@@ -720,19 +721,18 @@ class Schema implements \JsonSerializable
 
 					if($classReflection->isEnum()) { // is enum
 						$schema->setEnum(true);
-						$enumReflection = new ReflectionEnum($className);
-						$schema->setColumnName('value', 'id');
-						$schema->setUIdPropertyName('value');
+						// $enumReflection = new ReflectionEnum($className);
+						$schema->setColumnName('id', 'id');
+						$schema->setUIdPropertyName('id');
 
-						$cases = $className::cases();
-						$type = $enumReflection->getBackingType();
-						if(!$type || $type instanceof ReflectionNamedType && $type->getName() == 'string') {
-							$schema->setColumnType('value', 'VARCHAR('.max(array_map(fn ($case) => strlen($case->value ?? $case->name), $cases)).')');
-						} else {
-							$type = '';
-							$values = array_map(fn ($case) => $case->value, $cases);
-							$schema->setColumnType('value', self::dbIntegerSize(min($values), max($values)));
-						}
+						// $cases = $className::cases();
+						// $type = $enumReflection->getBackingType();
+						// if(!$type || $type instanceof ReflectionNamedType && $type->getName() == 'string') {
+							$schema->setColumnType('id', 'VARCHAR('.max(array_map(fn ($case) => strlen($case->name), $className::cases())).')');
+						// } else {
+						// 	$values = array_map(fn ($case) => $case->value, $cases);
+						// 	$schema->setColumnType('id', self::dbIntegerSize(min($values), max($values)));
+						// }
 					}
 
 					// get attributes of traits properties
@@ -888,7 +888,7 @@ class Schema implements \JsonSerializable
 			$str.= '(';
 			foreach(array_flip($this->columnNames) as $columnName => $propertyName) {
 				if($schema->getUIdPropertyName() === $propertyName) { // id
-					$str.= self::quoteDbValue($case->value ?? $case->name, $schema->getColumnType($propertyName));
+					$str.= self::quoteDbValue($case->name, $schema->getColumnType($propertyName));
 				} else {
 					$str.= self::quoteDbValue($case->{$propertyName}(), $schema->getColumnType($propertyName));
 				}
