@@ -9,7 +9,7 @@ use ReflectionClass;
 use ReflectionProperty;
 use ReflectionNamedType;
 
-abstract class Model implements \JsonSerializable
+abstract class Model implements \JsonSerializable, SCRUDInterface
 {
 	protected static array $getters = [];
 	protected static array $setters = [];
