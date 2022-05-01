@@ -10,7 +10,7 @@ trait ModelEnum
 {
 	public function getId(): int|string
 	{
-		return $this->value;
+		return $this->name;
 	}
 
 	/*
