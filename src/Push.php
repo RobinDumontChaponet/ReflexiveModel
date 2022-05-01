@@ -24,7 +24,7 @@ abstract class Push extends ModelStatement
 	{
 		parent::__construct($model::class);
 
-		$this->initSchema();
+		$this->init();
 
 		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
 		if($this->model->ignoreModifiedProperties || (!$this->model->ignoreModifiedProperties && !empty($modifiedPropertiesNames))) {

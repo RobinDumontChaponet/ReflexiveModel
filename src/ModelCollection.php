@@ -43,6 +43,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private bool $isList = false;
 
 	public function __construct(
+		private string $className,
 		private ?PDOStatement $statement = null,
 		private ?Closure $generator = null,
 		private ?int $limit = null, // used to determine if is list

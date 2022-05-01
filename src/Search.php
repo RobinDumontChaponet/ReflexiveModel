@@ -8,7 +8,7 @@ class Search extends Pull
 {
 	public function execute(\PDO $database)
 	{
-		$this->initSchema();
+		$this->init();
 
 		if(isset($this->schema)) {
 			$this->query->setColumns($this->schema->getColumnNames());
@@ -17,6 +17,7 @@ class Search extends Pull
 		}
 
 		return new ModelCollection(
+			$this->modelClassName,
 			$this->query->prepare($database),
 			self::$instanciators[$this->modelClassName],
 			$this->query->getLimit(),

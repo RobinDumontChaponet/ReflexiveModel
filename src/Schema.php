@@ -9,8 +9,8 @@ use ReflectionUnionType;
 use ReflectionIntersectionType;
 
 use Composer\Script\Event;
-use ReflectionEnum;
-use ReflectionNamedType;
+
+use Psr\SimpleCache;
 
 class Schema implements \JsonSerializable
 {
@@ -42,8 +42,30 @@ class Schema implements \JsonSerializable
 	protected bool $complete = false;
 
 	// global caches ?
-	// private static bool $cache = true;
-	private static array $schemas = [];
+	public static bool $useInternalCache = true;
+	public static ?SimpleCache\CacheInterface $cache = null;
+	protected static array $schemas = [];
+
+	// stats
+	public static int $initCount = 0;
+
+	protected static function _getSchema(string $className): ?self
+	{
+		return static::$schemas[$className] ?? self::$cache?->get('schema_'.$className) ?? null;
+	}
+
+	public static function getSchema(string $className): ?self
+	{
+		return static::_getSchema($className) ?? self::initFromAttributes($className) ?? null;
+	}
+
+	protected static function _setSchema(string $className, self $schema): void
+	{
+		if(static::$useInternalCache)
+			static::$schemas[$className] = $schema;
+
+		self::$cache?->set('schema_'.$className, $schema, 300);
+	}
 
 	public function __construct(
 		protected string $tableName,
@@ -60,9 +82,17 @@ class Schema implements \JsonSerializable
 		// unset($this->columns[$key]['columnName']);
 	}
 
-	public function getColumnNames(): array
+	public function getColumnNames(bool $prefixed = true): array
 	{
-		return array_values(array_map(fn($value): string => $this->tableName.'.'.$value, $this->columnNames));
+		if($prefixed)
+			return array_values(array_map(fn($value): string => $this->tableName.'.'.$value, $this->columnNames));
+		else
+			return array_values($this->columnNames);
+	}
+
+	public function getPropertyNames(): array
+	{
+		return array_keys($this->columnNames);
 	}
 
 	public function getColumnName(int|string $key): ?string
@@ -691,7 +721,7 @@ class Schema implements \JsonSerializable
 
 	public static function initFromAttributes(string $className): ?static
 	{
-		$schema = static::$schemas[$className] ?? null;
+		$schema = static::_getSchema($className) ?? null;
 
 		if(!isset($schema)/* || !$schema->isComplete()*/) {
 			try {
@@ -710,7 +740,7 @@ class Schema implements \JsonSerializable
 					$attribute =  $attributeReflection->newInstance();
 					if(!empty($attribute->tableName) || $useModelNames) {
 						$schema = new static($attribute->tableName ?? $className);
-						static::$schemas[$className] = $schema;
+						static::_setSchema($className, $schema);
 						break;
 					} else
 						throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No table name.');
@@ -766,7 +796,10 @@ class Schema implements \JsonSerializable
 					}
 
 					$schema->complete();
-					static::$schemas[$className] = $schema;
+
+					static::$initCount++;
+
+					static::_setSchema($className, $schema);
 					return $schema;
 				}
 			} catch (\ReflectionException $e) {
@@ -871,14 +904,14 @@ class Schema implements \JsonSerializable
 		return $str.') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
 	}
 
-	public function dumpEnumModelsValuesSQL(string $className): ?string
+	public static function dumpEnumModelsValuesSQL(string $className): ?string
 	{
 		$schema = self::initFromAttributes($className);
 		if(empty($schema) || !$schema->isEnum())
 			return null;
 
-		$str = 'INSERT INTO `'. $this->getTableName() .'` (';
-		foreach($this->columnNames as $columnName) {
+		$str = 'INSERT INTO `'. $schema->getTableName() .'` (';
+		foreach($schema->getColumnNames(false) as $columnName) {
 			$str.= '`'.$columnName.'`, ';
 		}
 		$str = rtrim($str, ', ').') VALUES ';
@@ -886,10 +919,11 @@ class Schema implements \JsonSerializable
 
 		foreach($className::cases() as $case) {
 			$str.= '(';
-			foreach(array_flip($this->columnNames) as $columnName => $propertyName) {
+			foreach($schema->getPropertyNames() as $propertyName) {
 				if($schema->getUIdPropertyName() === $propertyName) { // id
 					$str.= self::quoteDbValue($case->name, $schema->getColumnType($propertyName));
 				} else {
+					var_dump($propertyName);
 					$str.= self::quoteDbValue($case->{$propertyName}(), $schema->getColumnType($propertyName));
 				}
 

@@ -19,9 +19,9 @@ abstract class Pull extends ModelStatement
 
 	public function with(string $propertyName, Comparator $comparator, Model $reference = null): static
 	{
-		$this->initSchema();
+		$this->init();
 
-		$referencedSchema = Schema::getCache()[$reference::class];
+		$referencedSchema = Schema::getSchema($reference::class);
 		if(!isset($referencedSchema)) {
 			throw new \TypeError('Schema "'.$reference::class.'" not set');
 		}

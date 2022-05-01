@@ -14,7 +14,7 @@ class Count extends Pull
 
 	public function execute(\PDO $database)
 	{
-		$this->initSchema();
+		$this->init();
 
 		$statement = $this->query->prepare($database);
 		$statement->execute();
