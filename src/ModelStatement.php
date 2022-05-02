@@ -28,6 +28,7 @@ abstract class ModelStatement
 	// global caches ?
 	public static bool $useInternalCache = true;
 	public static ?SimpleCache\CacheInterface $cache = null;
+	public static int $cacheTTL = 120;
 	protected static array $models = [];
 	protected static array $instanciators = [];
 
@@ -57,7 +58,7 @@ abstract class ModelStatement
 		if(static::$useInternalCache)
 			static::$models[$model::class][$model->getId()] = $model;
 
-		static::$cache?->set('model_'.$model::class.'_'.$model->getId(), $model, 120);
+		static::$cache?->set('model_'.$model::class.'_'.$model->getId(), $model, static::$cacheTTL);
 	}
 
 	// private ?\PDO $database;
@@ -78,10 +79,10 @@ abstract class ModelStatement
 
 			// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
 			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema) {
-				if(is_a($this->modelClassName, Model::class, true)) { // is model
-					if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
-						return [$rs->id, $object];
+				if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
+					return [$rs->id, $object];
 
+				if(is_a($this->modelClassName, Model::class, true)) { // is model
 					$this->modelClassName::initModelAttributes();
 					$object = $classReflection->newInstanceWithoutConstructor();
 

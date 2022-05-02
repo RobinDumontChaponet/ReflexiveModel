@@ -44,6 +44,7 @@ class Schema implements \JsonSerializable
 	// global caches ?
 	public static bool $useInternalCache = true;
 	public static ?SimpleCache\CacheInterface $cache = null;
+	public static int $cacheTTL = 300;
 	protected static array $schemas = [];
 
 	// stats
