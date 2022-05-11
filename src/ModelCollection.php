@@ -251,7 +251,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function offsetSet(mixed $key, mixed $object): void
 	{
-		if(isset($key) && isset($this[$key])) { // already in collection
+		if(isset($key) && isset($this[$key]) && $this[$key] instanceof Model) { // already in collection
 			if($object->hasModifiedProperties() && !in_array($key, $this->modifiedKeys)) { // is modified
 				$this->modifiedKeys[] = $key;
 			}
