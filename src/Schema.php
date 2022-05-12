@@ -28,7 +28,7 @@ class Schema implements \JsonSerializable
 	 * $columnNames[string propertyName] = string columnName;
 	 */
 	protected array $columnNames = [];
-	protected ?string $uIdPropertyName = null;
+	protected string|array|null $uIdPropertyName = null;
 	/*
 	 * $references[string propertyName] = [
 		 'tableName' => string,
@@ -113,26 +113,49 @@ class Schema implements \JsonSerializable
 		}
 	}
 
-	public function getUIdColumnName(): ?string
+	public function getUIdColumnName(): string|array|null
 	{
-		return $this->getColumnName($this->uIdPropertyName);
+		if(empty($this->uIdPropertyName))
+			return null;
+
+		if(is_array($this->uIdPropertyName))
+			return array_map(fn($propertyName): string => $this->getColumnName($propertyName), $this->uIdPropertyName);
+		else
+			return $this->getColumnName($this->uIdPropertyName);
 	}
-	public function getUIdPropertyName(): ?string
+	public function getUIdPropertyName(): string|array|null
 	{
 		return $this->uIdPropertyName;
 	}
-	public function setUIdPropertyName(string $name): void
+	public function setUIdPropertyName(string ...$name): void
 	{
+		if(count($name) == 1)
+			$name = $name[0];
+
 		$this->uIdPropertyName = $name;
 	}
 	public function hasUId(): bool
 	{
-		return isset($this->uIdPropertyName) && $this->hasColumn($this->uIdPropertyName);
+		if(!isset($this->uIdPropertyName))
+			return false;
+
+		if(is_array($this->uIdPropertyName)) {
+			foreach($this->uIdPropertyName as $propertyName) {
+				if(!$this->hasColumn($propertyName))
+					return false;
+			}
+			return true;
+		} else
+			return $this->hasColumn($this->uIdPropertyName);
+
 	}
 
-	public function getUIdColumnType(): ?string
+	public function getUIdColumnType(): string|array|null
 	{
-		return $this->getColumnType($this->uIdPropertyName);
+		if(is_array($this->uIdPropertyName))
+			return array_map(fn($propertyName): string => $this->getColumnType($propertyName), $this->uIdPropertyName);
+		else
+			return $this->getColumnType($this->uIdPropertyName);
 	}
 
 	public function hasReference(int|string $key): bool
@@ -797,7 +820,6 @@ class Schema implements \JsonSerializable
 					}
 
 					$schema->complete();
-
 					static::$initCount++;
 
 					static::_setSchema($className, $schema);
@@ -838,7 +860,13 @@ class Schema implements \JsonSerializable
 				$str.= match($defaultValueType) {
 					'int', 'double', 'float' => $defaultValue,
 					'boolean' => (int)$defaultValue,
-					'string' => '\''.$defaultValue.'\'',
+					'string' => in_array(
+						$defaultValue,
+						[
+							'NOW()',
+							'CURRENT_TIMESTAMP'
+						]
+					)? $defaultValue : '\''.$defaultValue.'\'',
 					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->value.'\'':'NULL',
 				};
 			}
@@ -924,7 +952,6 @@ class Schema implements \JsonSerializable
 				if($schema->getUIdPropertyName() === $propertyName) { // id
 					$str.= self::quoteDbValue($case->name, $schema->getColumnType($propertyName));
 				} else {
-					var_dump($propertyName);
 					$str.= self::quoteDbValue($case->{$propertyName}(), $schema->getColumnType($propertyName));
 				}
 

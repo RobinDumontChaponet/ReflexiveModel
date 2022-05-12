@@ -74,10 +74,14 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 	}
 
     public function __construct(
+		#[Property]
 		#[Column('id', isId: true, type: 'BIGINT(20) UNSIGNED', autoIncrement: true)]
-		protected int $id = -1,
+		protected int|string|array $id = -1,
 	)
 	{
+		if(is_array($id) && count($id) == 1)
+			$this->id = array_values($id)[0];
+
 		static::initModelAttributes();
 	}
 
@@ -86,13 +90,16 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		static::initModelAttributes();
 	}
 
-    public function getId(): int|string
+    public function getId(): int|string|array
     {
         return $this->id;
     }
 
-    public function setId(int|string $id): void
+    public function setId(int|string ...$id): void
     {
+		if(count($id) == 1)
+			$id = array_values($id)[0];
+
         $this->id = $id;
     }
 
@@ -126,7 +133,7 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 				$propertyReflection = new ReflectionProperty(static::class, $name);
 				$type = $propertyReflection->getType();
 				if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
-					$this->{$name} = new ModelCollection();
+					$this->{$name} = new ModelCollection(self::class);
 				elseif($type->allowsNull())
 					$this->{$name} = null;
 			}
