@@ -28,15 +28,5 @@
 	},
 	"scripts": {
 		"export": "Reflexive\\Model\\Schema\\ScriptHandler::export"
-	},
-    "repositories": [
-        {
-            "type": "path",
-            "url": "/Users/r-dc/Sites/Reflexive/Core"
-        },
-		{
-			"type": "path",
-			"url": "/Users/r-dc/Sites/Reflexive/Query"
-		}
-    ]
+	}
 }
