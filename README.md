@@ -1,3 +1,3 @@
-# ReflexiveCore
+# ReflexiveModel
 
 $$ {{∀ x ∈ X : x R x}} $$
