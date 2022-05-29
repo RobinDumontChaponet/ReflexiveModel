@@ -858,7 +858,7 @@ class Schema implements \JsonSerializable
 				$defaultValue = $this->getColumnDefaultValue($propertyName);
 				$defaultValueType = gettype($defaultValue);
 				$str.= match($defaultValueType) {
-					'int', 'double', 'float' => $defaultValue,
+					'integer', 'double', 'float' => $defaultValue,
 					'boolean' => (int)$defaultValue,
 					'string' => in_array(
 						$defaultValue,
