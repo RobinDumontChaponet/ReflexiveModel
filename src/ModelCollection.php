@@ -8,7 +8,7 @@ use Closure;
 use PDO;
 use PDOStatement;
 
-class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
+class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable, \JsonSerializable
 {
 	// Parameters
 	public bool $cache = true;
@@ -339,5 +339,15 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		return $this->count;
+	}
+
+	/*
+	 * Implements JsonSerializable
+	 */
+	public function jsonSerialize(): mixed
+	{
+		$this->cacheAll();
+
+		return array_values($this->objects);
 	}
 }
