@@ -81,7 +81,7 @@ abstract class Push extends ModelStatement
 						if(!in_array(strtoupper($defaultValue), ['NOW()', 'CURRENT_TIMESTAMP']))
 							$this->query->set($column['columnName'], $defaultValue);
 					} else
-						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from model "'.$propertyName.'"');
+						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property "'.$propertyName.'" of model "'.$model::class.'"');
 				}
 			}
 
