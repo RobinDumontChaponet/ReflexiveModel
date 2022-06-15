@@ -33,7 +33,7 @@ class Schema implements \JsonSerializable
 	 * $references[string propertyName] = [
 		 'tableName' => string,
 		 'columnName' => string,
-		 'modelClassName' => string,
+		 'type' => string,
 	 ];
 	 */
 	protected array $references = [];
@@ -963,7 +963,7 @@ class Schema implements \JsonSerializable
 		return rtrim($str, ', ').'; ';
 	}
 
-	public static function export(Event $event)
+	public static function exportSQL(Event $event)
 	{
 		$io = $event->getIO();
 		// $extra = $event->getComposer()->getPackage()->getExtra();
