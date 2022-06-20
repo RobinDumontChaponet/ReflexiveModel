@@ -28,7 +28,7 @@ class Create extends Push
 			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 				if($referencedQuery instanceof Query\Composed)
 					$referencedQuery->prepare($database)->execute();
-				elseif($referencedQuery instanceof  ModelStatement) {
+				elseif($referencedQuery instanceof ModelStatement) {
 					if($this->model->updateReferences)
 						$referencedQuery->execute($database);
 				}
