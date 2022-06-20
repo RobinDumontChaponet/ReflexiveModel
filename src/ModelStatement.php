@@ -113,8 +113,7 @@ abstract class ModelStatement
 												if(enum_exists($typeName)) { // PHP enum
 													$propertyReflection->setValue(
 														$object,
-														constant($typeName.'::'.$value)
-														// $typeName::tryFrom($value)
+														$typeName::tryFrom($value)
 													);
 													break;
 												} elseif(class_exists($typeName, true)) { // object
@@ -161,7 +160,7 @@ abstract class ModelStatement
 									// }
 								break;
 								case Cardinality::ManyToMany:
-									$propertyReflection->setValue($object, $reference['type']::search()->where($propertyName, Comparator::EQUAL, $object)->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::search()->with($propertyName, Comparator::EQUAL, $object)->execute($database));
 								break;
 							}
 						}
@@ -284,10 +283,10 @@ abstract class ModelStatement
 		return $this->query;
 	}
 
-	 public function getInstanciator(): ?Closure
-	 {
-		 $this->init();
+ 	public function getInstanciator(): ?Closure
+ 	{
+ 		$this->init();
 
-		 return static::$instanciators[$this->modelClassName] ?? null;
-	 }
+ 		return static::$instanciators[$this->modelClassName] ?? null;
+ 	}
 }
