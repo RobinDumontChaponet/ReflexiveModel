@@ -55,7 +55,7 @@ abstract class Push extends ModelStatement
 									break;
 								} else {
 									if(enum_exists($type->getName())) { // PHP enum
-										$this->query->set($column['columnName'], $value->value);
+										$this->query->set($column['columnName'], $value->name);
 										break;
 									} elseif(class_exists($type->getName(), true)) { // object
 										$this->query->set(
