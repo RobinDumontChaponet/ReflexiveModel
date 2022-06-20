@@ -19,6 +19,8 @@ abstract class Pull extends ModelStatement
 
 	public function with(string $propertyName, Comparator $comparator, Model $reference = null): static
 	{
+		throw new Error('Do NOT use with');
+
 		$this->init();
 
 		$referencedSchema = Schema::getSchema($reference::class);
