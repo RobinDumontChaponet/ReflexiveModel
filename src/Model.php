@@ -218,7 +218,7 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 	 * Active Record
 	 */
 
-	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): Pull
 	{
 		$query = new Search(static::class);
 
@@ -228,12 +228,12 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		return $query;
 	}
 
-	public static function create(Model &$model): ModelStatement
+	public static function create(Model &$model): Push
 	{
 		return new Create($model);
 	}
 
-	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): Pull
 	{
 		$query = new Read(static::class);
 
@@ -243,7 +243,7 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		return $query;
 	}
 
-	public static function update(Model &$model): ModelStatement
+	public static function update(Model &$model): Push
 	{
 		return new Update($model);
 	}
@@ -253,7 +253,7 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		return new Delete($model);
 	}
 
-	public static function count(): ModelStatement
+	public static function count(): Pull
 	{
 		return new Count(static::class);
 	}
