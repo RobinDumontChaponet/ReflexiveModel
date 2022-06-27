@@ -168,6 +168,14 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 	}
 
+	public function asArray(bool $cacheAll = true): array
+	{
+		if($cacheAll)
+			$this->cacheAll();
+
+		return $this->objects;
+	}
+
 	public function next(): void
 	{
 		$this->index++;
