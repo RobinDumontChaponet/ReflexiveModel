@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Closure;
+use DateTimeInterface;
 use Reflexive\Core\Comparator;
 use Reflexive\Query;
 use ReflectionClass;
@@ -113,7 +114,8 @@ abstract class ModelStatement
 												if(enum_exists($typeName)) { // PHP enum
 													$propertyReflection->setValue(
 														$object,
-														$typeName::tryFrom($value)
+														constant($typeName.'::'.$value)
+														// $typeName::tryFrom($value)
 													);
 													break;
 												} elseif(class_exists($typeName, true)) { // object
@@ -201,13 +203,17 @@ abstract class ModelStatement
 		return $this;
 	}
 
-	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model $value = null): static
+	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model|DateTimeInterface $value = null): static
 	{
-		$this->init();
+		if(empty($this->query->getConditions()))
+			$this->init();
 
 		if($this->schema->hasColumn($propertyName)) {
 			if(is_bool($value))
 				$value = (int)$value;
+
+			if($value instanceof DateTimeInterface)
+				$value = $value->format('Y-m-d H:i:s');;
 
 			$this->query->where($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
 		} elseif($this->schema->hasReference($propertyName)) {
@@ -283,10 +289,10 @@ abstract class ModelStatement
 		return $this->query;
 	}
 
- 	public function getInstanciator(): ?Closure
- 	{
- 		$this->init();
+	 public function getInstanciator(): ?Closure
+	 {
+		 $this->init();
 
- 		return static::$instanciators[$this->modelClassName] ?? null;
- 	}
+		 return static::$instanciators[$this->modelClassName] ?? null;
+	 }
 }
