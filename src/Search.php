@@ -6,7 +6,10 @@ namespace Reflexive\Model;
 
 class Search extends Pull
 {
-	public function execute(\PDO $database)
+	/*
+	 * @throws \TypeError
+	 */
+	public function execute(\PDO $database): ModelCollection
 	{
 		$this->init();
 

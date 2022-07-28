@@ -79,7 +79,7 @@ abstract class ModelStatement
 			$classReflection = new ReflectionClass($this->modelClassName);
 
 			// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
-			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema) {
+			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema): array {
 				if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
 					return [$rs->id, $object];
 
@@ -109,6 +109,7 @@ abstract class ModelStatement
 												$propertyReflection->setValue($object, $value);
 												break;
 											} else {
+												/** @psalm-var class-string $typeName */
 												$typeName = $type->getName();
 
 												if(enum_exists($typeName)) { // PHP enum
@@ -122,7 +123,7 @@ abstract class ModelStatement
 													$propertyReflection->setValue(
 														$object,
 														match($typeName) {
-															'DateTime' => new \DateTime($value),
+															\DateTime::class => new \DateTime($value),
 															default => new $typeName($value)
 														}
 													);
@@ -209,11 +210,11 @@ abstract class ModelStatement
 			$this->init();
 
 		if($this->schema->hasColumn($propertyName)) {
-			if(is_bool($value))
-				$value = (int)$value;
-
-			if($value instanceof DateTimeInterface)
-				$value = $value->format('Y-m-d H:i:s');;
+			$value = match(gettype($value)) {
+				'boolean' => (int)$value,
+				'object' => $value instanceof DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value->id,
+				default => $value,
+			};
 
 			$this->query->where($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
 		} elseif($this->schema->hasReference($propertyName)) {

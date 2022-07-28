@@ -27,7 +27,7 @@ abstract class Push extends ModelStatement
 		$this->init();
 
 		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
-		if($this->model->ignoreModifiedProperties || (!$this->model->ignoreModifiedProperties && !empty($modifiedPropertiesNames))) {
+		if($this->model->ignoreModifiedProperties || !empty($modifiedPropertiesNames)) {
 			foreach($this->schema->getColumns() as $propertyName => $column) {
 				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || (isset($column['autoIncrement']) && $column['autoIncrement']) || ($this->schema->hasReference($propertyName) && $this->schema->getReferenceCardinality($propertyName) === Cardinality::ManyToMany))
 					continue;
@@ -42,6 +42,7 @@ abstract class Push extends ModelStatement
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								if($type->isBuiltin()) { // PHP builtin types
+									/** @psalm-suppress UndefinedMethod */
 									$this->query->set(
 										$column['columnName'],
 										match($type->getName()) {
@@ -55,14 +56,17 @@ abstract class Push extends ModelStatement
 									break;
 								} else {
 									if(enum_exists($type->getName())) { // PHP enum
+										/** @psalm-suppress UndefinedMethod */
 										$this->query->set($column['columnName'], $value->name);
 										break;
 									} elseif(class_exists($type->getName(), true)) { // object
+										/** @psalm-suppress UndefinedMethod */
 										$this->query->set(
 											$column['columnName'],
 											match($type->getName()) {
 												'DateTime' => $value->format('Y-m-d H:i:s'),
 												'Reflexive\Model\Model' => $value->getId(),
+												default => $value->__toString(),
 											}
 										);
 										break;
@@ -70,18 +74,20 @@ abstract class Push extends ModelStatement
 								}
 							}
 						} else {
-							var_dump('NO TYPE ?');
+							throw new \LogicException('NO TYPE ? Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" from property "'.$propertyName.'" of model "'.$model::class.'"');
 							// $this->query->set($column['columnName'], $value);
 						}
 					}
 				} else {
-					if($this->schema->isColumnNullable($propertyName))
+					if($this->schema->isColumnNullable($propertyName)) {
+						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($column['columnName'], null);
-					elseif(null !== ($defaultValue = $this->schema->getColumnDefaultValue($propertyName))) {
-						if(!in_array(strtoupper($defaultValue), ['NOW()', 'CURRENT_TIMESTAMP']))
-							$this->query->set($column['columnName'], $defaultValue);
-					} else
+					} elseif(null !== ($defaultValue = $this->schema->getColumnDefaultValue($propertyName)) && !in_array(strtoupper($defaultValue), ['NOW()', 'CURRENT_TIMESTAMP'])) {
+						/** @psalm-suppress UndefinedMethod */
+						$this->query->set($column['columnName'], $defaultValue);
+					} else {
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property "'.$propertyName.'" of model "'.$model::class.'"');
+					}
 				}
 			}
 
@@ -96,6 +102,7 @@ abstract class Push extends ModelStatement
 
 					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
 					if(isset($reference['columnName']) && !is_null($value)) {
+						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($reference['columnName'], $value->getId());
 					}
 				}
@@ -140,11 +147,9 @@ abstract class Push extends ModelStatement
 		}
 	}
 
-	public function execute(\PDO $database)
+	public function execute(\PDO $database): bool
 	{
 		$statement = $this->query->prepare($database);
-		$execute = $statement->execute();
-
-		return $execute;
+		return $statement->execute();
 	}
 }

@@ -6,7 +6,7 @@ namespace Reflexive\Model;
 
 class Read extends Pull
 {
-	public function execute(\PDO $database)
+	public function execute(\PDO $database): ?Model
 	{
 		$this->init();
 

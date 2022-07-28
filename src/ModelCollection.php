@@ -23,7 +23,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private int $index;
 	private int|string|null $lastKey;
-	private mixed $lastOject;
+	private mixed $lastObject;
 	private bool $valid;
 
 	// cached data
@@ -102,7 +102,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 		$this->isList = (0 === $this->offset && $this->limit == $this->count);
 
-		return $result;
+		return $result ?? false;
 	}
 
 	/*
@@ -115,7 +115,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private function fetchCurrent(): void
 	{
-		if($this->autoExecute && !empty($this->statement) && (null === $this->statement?->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && (null === $this->statement->errorCode() || $this->reset)) {
 			$this->execute();
 		}
 
@@ -209,6 +209,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	{
 		if(enum_exists($model::class)) {
 			$this->count = count($this->objects);
+			/** @psalm-suppress NoInterfaceProperties */
 			return isset($this[$model->name]);
 		} else
 			return isset($this[$model->getId()]);

@@ -12,7 +12,7 @@ class Count extends Pull
 		$this->query->setColumns(['c' => 'COUNT(*)']);
 	}
 
-	public function execute(\PDO $database)
+	public function execute(\PDO $database): int
 	{
 		$this->init();
 

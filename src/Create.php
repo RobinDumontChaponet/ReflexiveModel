@@ -16,7 +16,7 @@ class Create extends Push
 		parent::__construct($model);
 	}
 
-	public function execute(\PDO $database)
+	public function execute(\PDO $database): bool
 	{
 		$execute = parent::execute($database);
 
@@ -35,7 +35,6 @@ class Create extends Push
 			}
 			$this->model->resetModifiedPropertiesNames();
 		}
-
 
 		return $execute;
 	}

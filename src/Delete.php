@@ -18,9 +18,12 @@ class Delete extends ModelStatement
 		$this->where('id', Comparator::EQUAL, $model->getId());
 	}
 
-	public function execute(\PDO $database)
+	/*
+	 * @throws \TypeError
+	 */
+	public function execute(\PDO $database): bool
 	{
 		$statement = parent::_prepare($database);
-		$statement->execute();
+		return $statement->execute();
 	}
 }

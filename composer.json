@@ -14,12 +14,13 @@
 	"require": {
 		"php": "~8.1.0",
 		"composer-runtime-api": "^2.0.0",
-		"reflexive/core": "dev-master as 0.1",
-		"reflexive/query": "dev-master as 0.1",
+		"reflexive/core": "dev-master",
+		"reflexive/query": "dev-master",
 		"psr/simple-cache": "^1.0"
 	},
 	"require-dev": {
-		"composer/composer": "^2"
+		"composer/composer": "^2",
+		"vimeo/psalm": "^4.24"
 	},
 	"autoload": {
 		"psr-4": {
@@ -29,5 +30,23 @@
 	"scripts": {
 		"exportSQL": "Reflexive\\Model\\Schema\\ScriptHandler::exportSQL",
 		"exportGraph": "Reflexive\\Model\\Model\\ScriptHandler::exportGraph"
-	}
+	},
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/Users/r-dc/Sites/Reflexive/Core",
+			"options": {
+			  "symlink": true
+			},
+			"canonical": false
+        },
+		{
+			"type": "path",
+			"url": "/Users/r-dc/Sites/Reflexive/Query",
+			"options": {
+			  "symlink": true
+			},
+			"canonical": false
+		}
+    ]
 }

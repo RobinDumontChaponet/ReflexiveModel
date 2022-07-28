@@ -22,7 +22,7 @@ class Update extends Push
 		}
 	}
 
-	public function execute(\PDO $database)
+	public function execute(\PDO $database): bool
 	{
 		$execute = (!$this->model->updateUnmodified && empty($this->model->getModifiedPropertiesNames())) ? null : parent::execute($database);
 

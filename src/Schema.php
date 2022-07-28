@@ -119,7 +119,7 @@ class Schema implements \JsonSerializable
 			return null;
 
 		if(is_array($this->uIdPropertyName))
-			return array_map(fn($propertyName): string => $this->getColumnName($propertyName), $this->uIdPropertyName);
+			return array_map(fn($propertyName): ?string => $this->getColumnName($propertyName), $this->uIdPropertyName);
 		else
 			return $this->getColumnName($this->uIdPropertyName);
 	}
@@ -152,9 +152,14 @@ class Schema implements \JsonSerializable
 
 	public function getUIdColumnType(): string|array|null
 	{
-		if(is_array($this->uIdPropertyName))
-			return array_map(fn($propertyName): string => $this->getColumnType($propertyName), $this->uIdPropertyName);
-		else
+		if(is_array($this->uIdPropertyName)) {
+			// return array_map (fn($propertyName): ?string => $this->getColumnType($propertyName), $this->uIdPropertyName);
+			$fn = fn($propertyName): array|null|string => $this->getColumnType($propertyName);
+
+			return array_map(function($item) use($fn){
+				return is_array($item) ? array_map($fn, $item) : $fn($item);
+			}, $this->uIdPropertyName);
+		} else
 			return $this->getColumnType($this->uIdPropertyName);
 	}
 
@@ -287,22 +292,22 @@ class Schema implements \JsonSerializable
 			$this->references[$key] = ['nullable' => $nullable];
 	}
 
-	public function isReferenceInverse(int|string $key): ?bool
-	{
-		if($this->hasReference($key))
-			return $this->references[$key]['inverse'] ?? null;
+// 	public function isReferenceInverse(int|string $key): ?bool
+// 	{
+// 		if($this->hasReference($key))
+// 			return $this->references[$key]['inverse'] ?? null;
+//
+// 		return null;
+// 	}
+// 	public function setReferenceInverse(int|string $key, bool $inverse = true): void
+// 	{
+// 		if($this->hasReference($key))
+// 			$this->references[$key]['inverse'] = $inverse;
+// 		else
+// 			$this->references[$key] = ['inverse' => $inverse];
+// 	}
 
-		return null;
-	}
-	public function setReferenceInverse(int|string $key, bool $inverse = true): void
-	{
-		if($this->hasReference($key))
-			$this->references[$key]['inverse'] = $inverse;
-		else
-			$this->references[$key] = ['inverse' => $inverse];
-	}
-
-	public function getColumnType(int|string $key): ?string
+	public function getColumnType(int|string $key): string|array|null
 	{
 		if($this->hasColumn($key))
 			return $this->columns[$key]['type'] ?? null;
@@ -436,10 +441,6 @@ class Schema implements \JsonSerializable
 		// $array['references']??= $this->references;
 	}
 
-	public function instanciator() {
-		// var_dump('instanciator');
-	}
-
 	private static function reflectPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		static::reflectColumnPropertiesAttributes($reflection, $schema, $className);
@@ -489,6 +490,7 @@ class Schema implements \JsonSerializable
 									});
 									break;
 								} else {
+									/** @psalm-var class-string $typeName */
 									$typeName = $type->getName();
 
 									// if($typeName == 'Reflexive\Model\Collection') {
@@ -518,7 +520,7 @@ class Schema implements \JsonSerializable
 											$schema->setColumnType(
 												$propertyReflection->getName(),
 												match($typeName) {
-													'DateTime' => 'DATETIME',
+													\DateTime::class => 'DATETIME',
 													default => ''
 												}
 											);
@@ -528,27 +530,27 @@ class Schema implements \JsonSerializable
 								}
 							}
 						} else {
-							var_dump('NO TYPE ?');
+							throw new \LogicException('NO TYPE ?');
 						}
 					} else {
-						var_dump('NO TYPE ?');
+						throw new \LogicException('NO TYPE ?');
 					}
 				}
 
 				if(!empty($modelAttribute->nullable))
 					$schema->setColumnNullable($propertyReflection->getName(), $modelAttribute->nullable);
 
-				if(!empty($modelAttribute->unique))
+				//if(!empty($modelAttribute->unique)) // not nullable
 					$schema->setColumnUnique($propertyReflection->getName(), $modelAttribute->unique);
-				else {
+				//else {
 					// should infer unique from ?.
-				}
+				//}
 
-				if(!empty($modelAttribute->autoIncrement)) {
+				//if(!empty($modelAttribute->autoIncrement)) { // not nullable
 					$schema->setColumnAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
-				}
+				//}
 
-				if(isset($modelAttribute->isId) && $modelAttribute->isId) {
+				if($modelAttribute->isId) {
 					$schema->setUIdPropertyName($propertyReflection->getName());
 				}
 			}
@@ -585,11 +587,10 @@ class Schema implements \JsonSerializable
 
 			$schema->setReferenceCardinality($propertyName, $modelAttribute->cardinality);
 
-			if(!empty($modelAttribute->nullable))
-				$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
+			$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
 
-			if(!empty($modelAttribute->inverse))
-				$schema->setReferenceInverse($propertyName, $modelAttribute->inverse);
+			// if(null !== $modelAttribute->inverse)
+			// 	$schema->setReferenceInverse($propertyName, $modelAttribute->inverse);
 
 			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
@@ -696,6 +697,7 @@ class Schema implements \JsonSerializable
 									});
 									break;
 								} else {
+									/** @psalm-var class-string $typeName */
 									$typeName = $type->getName();
 
 									if(class_exists($typeName)) { // object
@@ -709,7 +711,7 @@ class Schema implements \JsonSerializable
 											$schema->setColumnType(
 												$methodReflection->getName(),
 												match($typeName) {
-													'DateTime' => 'DATETIME',
+													\DateTime::class => 'DATETIME',
 													default => ''
 												}
 											);
@@ -719,24 +721,21 @@ class Schema implements \JsonSerializable
 								}
 							}
 						} else {
-							var_dump('NO TYPE ?');
+							throw new \LogicException('NO TYPE ?');
 						}
 					} else {
-						var_dump('NO TYPE ?');
+						throw new \LogicException('NO TYPE ?');
 					}
 				}
 
-				if(!empty($methodAttribute->nullable))
+				if(isset($methodAttribute->nullable))
 					$schema->setColumnNullable($methodReflection->getName(), $methodAttribute->nullable);
 
-				if(!empty($methodAttribute->unique))
-					$schema->setColumnUnique($methodReflection->getName(), $methodAttribute->unique);
+				$schema->setColumnUnique($methodReflection->getName(), $methodAttribute->unique);
 
-				if(!empty($methodAttribute->autoIncrement)) {
-					$schema->setColumnAutoIncrement($methodReflection->getName(), $methodAttribute->autoIncrement);
-				}
+				$schema->setColumnAutoIncrement($methodReflection->getName(), $methodAttribute->autoIncrement);
 
-				if(isset($methodAttribute->isId) && $methodAttribute->isId) {
+				if($methodAttribute->isId) {
 					$schema->setUIdPropertyName($methodReflection->getName());
 				}
 			}
@@ -945,7 +944,6 @@ class Schema implements \JsonSerializable
 		}
 		$str = rtrim($str, ', ').') VALUES ';
 
-
 		foreach($className::cases() as $case) {
 			$str.= '(';
 			foreach($schema->getPropertyNames() as $propertyName) {
@@ -963,7 +961,7 @@ class Schema implements \JsonSerializable
 		return rtrim($str, ', ').'; ';
 	}
 
-	public static function exportSQL(Event $event)
+	public static function exportSQL(Event $event): void
 	{
 		$io = $event->getIO();
 		// $extra = $event->getComposer()->getPackage()->getExtra();
@@ -1038,8 +1036,6 @@ class Schema implements \JsonSerializable
 		$io->writeRaw('SET foreign_key_checks = 1;', true);
 		$io->writeRaw('', true);
 		$io->writeRaw('-- End of export --', true);
-
-		// $io->writeRaw(json_encode(self::getCache(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT), true);
 	}
 
 	private static function dbIntegerSize(int $min, int $max): string

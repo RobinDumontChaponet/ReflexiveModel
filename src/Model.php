@@ -12,6 +12,8 @@ use ReflectionUnionType;
 
 use Composer\Script\Event;
 
+const PHP_TAB = "\t";
+
 abstract class Model implements \JsonSerializable, SCRUDInterface
 {
 	protected static array $getters = [];
@@ -258,7 +260,7 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		return new Count(static::class);
 	}
 
-	public static function exportGraph(Event $event)
+	public static function exportGraph(Event $event): void
 	{
 		$io = $event->getIO();
 		// $extra = $event->getComposer()->getPackage()->getExtra();
@@ -290,40 +292,39 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		$io->write('', true);
 		$count = 0;
 
-		define('PHP_TAB',"\t");
-
 		$io->writeRaw('digraph G {');
 		$io->writeRaw(PHP_TAB. 'edge [color=red, arrowsize=2];');
 		$io->writeRaw(PHP_TAB. 'node [shape=plaintext, color=white];'. PHP_EOL);
 
 		foreach($classNames as $className) {
+			/** @psalm-var class-string $className */
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract() || $classReflection->isTrait() || (!is_a($className, Model::class, true) && !is_a($className, SCRUDInterface::class, true)))
 				continue;
 
 			$label = '<table bgcolor="grey90" border="0" style="rounded"><tr><td border="1" sides="B" colspan="2">'.$className.'</td></tr>';
 
-			if($className instanceof Model)
-				$className::initModelAttributes();
 			$schema = Schema::getSchema($className);
-
 			if($schema) {
 				if($schema->isEnum()) { // is ModelEnum
 					// enum cases
+					/** @psalm-suppress UndefinedMethod */
 					$label.= '<tr><td align="right"><font color="grey64">+</font></td><td>'. implode(', ', array_map(fn($case) => '::'.$case->name, $className::cases())). '</td></tr>';
 
-				} else  { // is Model
+				} elseif($className instanceof Model)  { // is Model
+					$className::initModelAttributes();
+
 					// class properties
 					foreach($classReflection->getProperties() as $propertyReflection) {
-						if($propertyReflection->class !== $className)
+						if($propertyReflection->class != $className)
 							continue;
 
 						$propertyName = $propertyReflection->getName();
 
 						$visibility = '<font color="grey64">';
-						if(isset(static::$attributedProperties[$className][$propertyName])) { // have Property attribute
+						if(isset(static::$attributedProperties["$className"][$propertyName])) { // have Property attribute
 							$visibility.= '®';
-							$readonly = !static::$attributedProperties[$className][$propertyName];
+							$readonly = !static::$attributedProperties["$className"][$propertyName];
 						} else {
 							$readonly = $propertyReflection->isReadOnly();
 						}
@@ -342,58 +343,58 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 
 						$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$propertyName.'">' .$propertyName.' <font color="grey64">: '. $typeString .'</font></td></tr>';
 					}
-				}
 
-				$label.= '<hr />';
+					$label.= '<hr />';
 
-				// generated methods (with Property attribute)
-				$generatedMethods = [];
-				// getters
-				if(isset($className::$getters[$className])) {
-					foreach($className::$getters[$className] as $methodName => $propertyName) {
-						if($propertyReflection->isPrivate()) {
-							continue;
+					// generated methods (with Property attribute)
+					$generatedMethods = [];
+					// getters
+					if(isset($className::$getters["$className"])) {
+						foreach($className::$getters["$className"] as $methodName => $propertyName) {
+							if($propertyReflection->isPrivate()) {
+								continue;
+							}
+
+							$propertyReflection = $classReflection->getProperty($propertyName);
+							$visibility = '<font color="grey64">® +</font>';
+
+							$type = $propertyReflection->getType();
+							if($type instanceof ReflectionUnionType) {
+								$typeString = implode(' | ', array_map(fn(ReflectionNamedType $v): string => $v->getName(), $type->getTypes()));
+							} elseif($type instanceof ReflectionNamedType) {
+								$typeString = $type->getName();
+							} else {
+								$typeString = 'undefined';
+							}
+
+							$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$methodName.'">' .$methodName.'() <font color="grey64">: '. $typeString .'</font></td></tr>';
+
+							$generatedMethods[] = $methodName;
 						}
-
-						$propertyReflection = $classReflection->getProperty($propertyName);
-						$visibility = '<font color="grey64">® +</font>';
-
-						$type = $propertyReflection->getType();
-						if($type instanceof ReflectionUnionType) {
-							$typeString = implode(' | ', array_map(fn(ReflectionNamedType $v): string => $v->getName(), $type->getTypes()));
-						} elseif($type instanceof ReflectionNamedType) {
-							$typeString = $type->getName();
-						} else {
-							$typeString = 'undefined';
-						}
-
-						$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$methodName.'">' .$methodName.'() <font color="grey64">: '. $typeString .'</font></td></tr>';
-
-						$generatedMethods[] = $methodName;
 					}
-				}
-				// setters
-				if(isset($className::$setters[$className])) {
-					foreach($className::$setters[$className] as $methodName => $propertyName) {
-						if($propertyReflection->isPrivate()) {
-							continue;
+					// setters
+					if(isset($className::$setters["$className"])) {
+						foreach($className::$setters["$className"] as $methodName => $propertyName) {
+							if($propertyReflection->isPrivate()) {
+								continue;
+							}
+
+							$propertyReflection = $classReflection->getProperty($propertyName);
+							$visibility = '<font color="grey64">® +</font>';
+
+							$type = $propertyReflection->getType();
+							if($type instanceof ReflectionUnionType) {
+								$typeString = implode(' | ', array_map(fn(ReflectionNamedType $v): string => $v->getName(), $type->getTypes()));
+							} elseif($type instanceof ReflectionNamedType) {
+								$typeString = $type->getName();
+							} else {
+								$typeString = 'undefined';
+							}
+
+							$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$methodName.'">' .$methodName.'() <font color="grey64">: '. $typeString .'</font></td></tr>';
+
+							$generatedMethods[] = $methodName;
 						}
-
-						$propertyReflection = $classReflection->getProperty($propertyName);
-						$visibility = '<font color="grey64">® +</font>';
-
-						$type = $propertyReflection->getType();
-						if($type instanceof ReflectionUnionType) {
-							$typeString = implode(' | ', array_map(fn(ReflectionNamedType $v): string => $v->getName(), $type->getTypes()));
-						} elseif($type instanceof ReflectionNamedType) {
-							$typeString = $type->getName();
-						} else {
-							$typeString = 'undefined';
-						}
-
-						$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$methodName.'">' .$methodName.'() <font color="grey64">: '. $typeString .'</font></td></tr>';
-
-						$generatedMethods[] = $methodName;
 					}
 				}
 
