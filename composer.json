@@ -1,6 +1,6 @@
 {
 	"name": "reflexive/model",
-	"description": "Description is coming",
+	"description": "Active record-thingy models, database Schemas, automagically doing stuffs, in need of optimisation",
 	"type": "library",
 	"license": "MIT",
 	"authors": [
@@ -30,23 +30,5 @@
 	"scripts": {
 		"exportSQL": "Reflexive\\Model\\Schema\\ScriptHandler::exportSQL",
 		"exportGraph": "Reflexive\\Model\\Model\\ScriptHandler::exportGraph"
-	},
-    "repositories": [
-        {
-            "type": "path",
-            "url": "/Users/r-dc/Sites/Reflexive/Core",
-			"options": {
-			  "symlink": true
-			},
-			"canonical": false
-        },
-		{
-			"type": "path",
-			"url": "/Users/r-dc/Sites/Reflexive/Query",
-			"options": {
-			  "symlink": true
-			},
-			"canonical": false
-		}
-    ]
+	}
 }
