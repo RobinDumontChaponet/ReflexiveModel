@@ -48,4 +48,17 @@ abstract class Pull extends ModelStatement
 
 		return $this;
 	}
+
+	public function order(string $propertyName, Query\Direction $direction = Query\Direction::ASC): static
+	{
+		$this->init();
+
+		if($this->schema->hasColumn($propertyName)) {
+			$this->query->order($this->schema->getColumnName($propertyName), $direction);
+		} else {
+			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'". Could not order by.');
+		}
+
+		return $this;
+	}
 }
