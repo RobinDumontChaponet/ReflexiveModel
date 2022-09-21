@@ -843,7 +843,7 @@ class Schema implements \JsonSerializable
 		return self::$schemas;
 	}
 
-	public function dumpSQL(string $className): string
+	public function dumpSQLTable(string $className): string
 	{
 		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
 
@@ -988,59 +988,49 @@ class Schema implements \JsonSerializable
 			echo $messages, PHP_EOL;
 	}
 
-	public static function exportSQL(): void
+	public static function dumpSQL(): string
 	{
-		// $extra = $event->getComposer()->getPackage()->getExtra();
+		$str = '';
+		// temporary duplication…
 		$classNames = [];
 
 		$classLoader = require('vendor/autoload.php');
 		if($classLoader->isClassMapAuthoritative()) {
-			self::verbose('ClassMap is authoritative, using composer classMap');
-
+			// ClassMap is authoritative, using composer classMap
 			$classNames = array_keys($classLoader->getClassMap());
 		} else {
-			self::verbose('Using composer autoload with temporary classMap');
-			// we do not require composer Event anymore
-			// foreach($event->getComposer()->getPackage()->getAutoload() as $type => $autoLoad) {
-				// self::verbose('Checking '.$type.' autoload');
-				foreach($classLoader->getFallbackDirsPsr4() as $nameSpace => $filePath) {
-					self::verbose('Checking in '.$filePath.' for nameSpace "'.$nameSpace.'"');
-
-					$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
-					foreach($classMap as $className => $classPath) {
-						self::veryVerbose('Loaded '.$className.' in '.$classPath);
-						$classNames[] = $className;
-					}
-				}
-			// }
+			// Using composer autoload with temporary classMap
+			foreach($classLoader->getFallbackDirsPsr4() as $filePath) {
+				$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
+				$classNames += array_keys($classMap);
+			}
 		}
+		// temporary duplication…
 
-		self::normal('Found '.count($classNames).' models');
-		echo PHP_EOL;
-		echo '-- Begining of export --', PHP_EOL;
-		echo '-- Ignore foreign keys checks while creating tables.', PHP_EOL;
-		echo 'SET foreign_key_checks = 0;', PHP_EOL;
-		echo PHP_EOL;
+		$str.= PHP_EOL;
+		$str.= '-- Begining of export --'. PHP_EOL;
+		$str.= '-- Ignore foreign keys checks while creating tables.'. PHP_EOL;
+		$str.= 'SET foreign_key_checks = 0;'. PHP_EOL;
+		$str.= PHP_EOL;
 
-		echo '-- Creating entities tables.', PHP_EOL;
+		$str.= '-- Creating entities tables.'. PHP_EOL;
 		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract())
 				continue;
 
-			$str = self::initFromAttributes($className)?->dumpSQL($className);
-
-			if(!empty($str)) {
-				echo $str, PHP_EOL;
-				echo PHP_EOL;
+			$tableDump = self::initFromAttributes($className)?->dumpSQLTable($className);
+			if(!empty($tableDump)) {
+				$str.= $tableDump. PHP_EOL;
+				$str.= PHP_EOL;
 				$count++;
 			}
 		}
-		echo '-- Created '.$count.' entities', PHP_EOL;
-		echo PHP_EOL;
+		$str.= '-- Created '.$count.' entities'. PHP_EOL;
+		$str.= PHP_EOL;
 
-		echo '-- Creating associations tables.', PHP_EOL;
+		$str.= '-- Creating associations tables.'. PHP_EOL;
 		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
@@ -1048,19 +1038,26 @@ class Schema implements \JsonSerializable
 				continue;
 
 			foreach(self::initFromAttributes($className)?->dumpReferencesSQL() ?? [] as $dump) {
-				echo $dump, PHP_EOL;
-				echo PHP_EOL;
+				$str.= $dump. PHP_EOL;
+				$str.= PHP_EOL;
 				$count++;
 			}
 		}
-		echo '-- Created '.$count.' associations', PHP_EOL;
-		echo PHP_EOL;
+		$str.= '-- Created '.$count.' associations'. PHP_EOL;
+		$str.= PHP_EOL;
 
-		echo PHP_EOL;
-		echo '-- Do not ignore foreign keys checks anymore.', PHP_EOL;
-		echo 'SET foreign_key_checks = 1;', PHP_EOL;
-		echo PHP_EOL;
-		echo '-- End of export --', PHP_EOL;
+		$str.= PHP_EOL;
+		$str.= '-- Do not ignore foreign keys checks anymore.'. PHP_EOL;
+		$str.= 'SET foreign_key_checks = 1;'. PHP_EOL;
+		$str.= PHP_EOL;
+		$str.= '-- End of export --'. PHP_EOL;
+
+		return $str;
+	}
+
+	public static function exportSQL(): void
+	{
+		echo self::dumpSQL();
 	}
 
 	private static function dbIntegerSize(int $min, int $max): string
