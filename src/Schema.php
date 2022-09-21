@@ -8,12 +8,13 @@ use ReflectionClass;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
-use Composer\Script\Event;
-
 use Psr\SimpleCache;
 
 class Schema implements \JsonSerializable
 {
+	// temporary var
+	public static bool $debug = false;
+
 	public bool $useModelNames = true;
 
 	/*
@@ -961,42 +962,67 @@ class Schema implements \JsonSerializable
 		return rtrim($str, ', ').'; ';
 	}
 
-	public static function exportSQL(Event $event): void
+	private static function debug(string $messages): void
 	{
-		$io = $event->getIO();
-		// $extra = $event->getComposer()->getPackage()->getExtra();
+		if(static::$debug)
+			echo $messages, PHP_EOL;
+	}
+	private static function normal(string $messages): void
+	{
+		if(static::$debug)
+			echo $messages, PHP_EOL;
+	}
+	private static function quiet(string $messages): void
+	{
+		if(static::$debug)
+			echo $messages, PHP_EOL;
+	}
+	private static function verbose(string $messages): void
+	{
+		if(static::$debug)
+			echo $messages, PHP_EOL;
+	}
+	private static function veryVerbose(string $messages): void
+	{
+		if(static::$debug)
+			echo $messages, PHP_EOL;
+	}
 
+	public static function exportSQL(): void
+	{
+		// $extra = $event->getComposer()->getPackage()->getExtra();
 		$classNames = [];
 
 		$classLoader = require('vendor/autoload.php');
 		if($classLoader->isClassMapAuthoritative()) {
-			$io->write('ClassMap is authoritative, using generated classMap', true, $io::VERBOSE);
+			self::verbose('ClassMap is authoritative, using composer classMap');
 
 			$classNames = array_keys($classLoader->getClassMap());
 		} else {
-			$io->write('Using composer autoload with temporary classMap', true, $io::VERBOSE);
-			foreach($event->getComposer()->getPackage()->getAutoload() as $type => $autoLoad) {
-				$io->write('Checking '.$type.' autoload', true, $io::VERBOSE);
-				foreach($autoLoad as $nameSpace => $filePath) {
-					$io->write('Checking in '.$filePath.' for nameSpace "'.$nameSpace.'"', true, $io::VERBOSE);
+			self::verbose('Using composer autoload with temporary classMap');
+			// we do not require composer Event anymore
+			// foreach($event->getComposer()->getPackage()->getAutoload() as $type => $autoLoad) {
+				// self::verbose('Checking '.$type.' autoload');
+				foreach($classLoader->getFallbackDirsPsr4() as $nameSpace => $filePath) {
+					self::verbose('Checking in '.$filePath.' for nameSpace "'.$nameSpace.'"');
 
 					$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
 					foreach($classMap as $className => $classPath) {
-						$io->write('Loaded '.$className.' in '.$classPath, true, $io::VERY_VERBOSE);
+						self::veryVerbose('Loaded '.$className.' in '.$classPath);
 						$classNames[] = $className;
 					}
 				}
-			}
+			// }
 		}
 
-		$io->write('Found '.count($classNames).' models', true, $io::NORMAL);
-		$io->write('', true);
-		$io->writeRaw('-- Begining of export --', true);
-		$io->writeRaw('-- Ignore foreign keys checks while creating tables.', true);
-		$io->writeRaw('SET foreign_key_checks = 0;', true);
-		$io->writeRaw('', true);
+		self::normal('Found '.count($classNames).' models');
+		echo PHP_EOL;
+		echo '-- Begining of export --', PHP_EOL;
+		echo '-- Ignore foreign keys checks while creating tables.', PHP_EOL;
+		echo 'SET foreign_key_checks = 0;', PHP_EOL;
+		echo PHP_EOL;
 
-		$io->writeRaw('-- Creating entities tables.', true);
+		echo '-- Creating entities tables.', PHP_EOL;
 		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
@@ -1006,36 +1032,35 @@ class Schema implements \JsonSerializable
 			$str = self::initFromAttributes($className)?->dumpSQL($className);
 
 			if(!empty($str)) {
-				$io->writeRaw($str, true);
-				$io->writeRaw('', true);
+				echo $str, PHP_EOL;
+				echo PHP_EOL;
 				$count++;
 			}
 		}
-		$io->writeRaw('-- Created '.$count.' entities', true);
-		$io->writeRaw('', true);
+		echo '-- Created '.$count.' entities', PHP_EOL;
+		echo PHP_EOL;
 
-		$io->writeRaw('-- Creating associations tables.', true);
+		echo '-- Creating associations tables.', PHP_EOL;
 		$count = 0;
 		foreach($classNames as $className) {
-
 			$classReflection = new ReflectionClass($className);
 			if($classReflection->isAbstract())
 				continue;
 
 			foreach(self::initFromAttributes($className)?->dumpReferencesSQL() ?? [] as $dump) {
-				$io->writeRaw($dump, true);
-				$io->writeRaw('', true);
+				echo $dump, PHP_EOL;
+				echo PHP_EOL;
 				$count++;
 			}
 		}
-		$io->writeRaw('-- Created '.$count.' associations', true);
-		$io->writeRaw('', true);
+		echo '-- Created '.$count.' associations', PHP_EOL;
+		echo PHP_EOL;
 
-		$io->writeRaw('', true);
-		$io->writeRaw('-- Do not ignore foreign keys checks anymore.', true);
-		$io->writeRaw('SET foreign_key_checks = 1;', true);
-		$io->writeRaw('', true);
-		$io->writeRaw('-- End of export --', true);
+		echo PHP_EOL;
+		echo '-- Do not ignore foreign keys checks anymore.', PHP_EOL;
+		echo 'SET foreign_key_checks = 1;', PHP_EOL;
+		echo PHP_EOL;
+		echo '-- End of export --', PHP_EOL;
 	}
 
 	private static function dbIntegerSize(int $min, int $max): string
