@@ -1009,8 +1009,8 @@ class Schema implements \JsonSerializable
 
 		$str.= PHP_EOL;
 		$str.= '-- Begining of export --'. PHP_EOL;
-		$str.= '-- Ignore foreign keys checks while creating tables.'. PHP_EOL;
-		$str.= 'SET foreign_key_checks = 0;'. PHP_EOL;
+		// $str.= '-- Ignore foreign keys checks while creating tables.'. PHP_EOL;
+		// $str.= 'SET foreign_key_checks = 0;'. PHP_EOL;
 		$str.= PHP_EOL;
 
 		$str.= '-- Creating entities tables.'. PHP_EOL;
@@ -1047,8 +1047,8 @@ class Schema implements \JsonSerializable
 		$str.= PHP_EOL;
 
 		$str.= PHP_EOL;
-		$str.= '-- Do not ignore foreign keys checks anymore.'. PHP_EOL;
-		$str.= 'SET foreign_key_checks = 1;'. PHP_EOL;
+		// $str.= '-- Do not ignore foreign keys checks anymore.'. PHP_EOL;
+		// $str.= 'SET foreign_key_checks = 1;'. PHP_EOL;
 		$str.= PHP_EOL;
 		$str.= '-- End of export --'. PHP_EOL;
 
