@@ -16,7 +16,7 @@ class Search extends Pull
 		if(isset($this->schema)) {
 			$this->query->setColumns($this->schema->getColumnNames());
 
-			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnName());
+			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 		}
 
 		return new ModelCollection(

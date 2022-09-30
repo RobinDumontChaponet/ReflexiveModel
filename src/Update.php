@@ -18,7 +18,7 @@ class Update extends Push
 		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {
-			$this->query->where($this->schema->getUIdColumnName(), Comparator::EQUAL, $this->model->getId());
+			$this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getId());
 		}
 	}
 

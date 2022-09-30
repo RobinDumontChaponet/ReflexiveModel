@@ -15,7 +15,7 @@ class Read extends Pull
 		}
 
 		$conditions = $this->query->getConditions();
-		if(count($conditions) == 1 && isset($conditions[$this->schema->getUIdColumnName()]))
+		if(count($conditions) == 1 && isset($conditions[$this->schema->getUIdColumnNameString()]))
 			if(($object = static::_getModel($this->modelClassName, $conditions[$this->schema->getUIdColumnName()]['value'])) !== null)
 				return $object;
 

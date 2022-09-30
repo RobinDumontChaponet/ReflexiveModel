@@ -148,16 +148,16 @@ abstract class ModelStatement
 
 							switch($reference['cardinality']) {
 								case Cardinality::OneToOne:
-									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::OneToMany:
 									if($referencedSchema->isEnum())
 										$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
 									else
-										$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+										$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 								break;
 								case Cardinality::ManyToOne:
-									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnName(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									$propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
 									// if(isset($reference['inverse'])) {
 									// 	$propertyReflection->setValue($object, $modelClassName::search()->where($reference['columnName'], Comparator::EQUAL, $object)->execute($database));
 									// }
@@ -233,7 +233,7 @@ abstract class ModelStatement
 					$this->schema->getReferenceForeignColumnName($propertyName),
 					Comparator::EQUAL,
 					$this->schema->getTableName(),
-					$this->schema->getUidColumnName(),
+					$this->schema->getUidColumnNameString(),
 				);
 				$this->query->and(
 					$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),

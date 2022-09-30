@@ -34,7 +34,7 @@ abstract class Pull extends ModelStatement
 					$referencedSchema->getReferenceForeignRightColumnName($propertyName),
 					Comparator::EQUAL,
 					$this->schema->getTableName(),
-					$this->schema->getUidColumnName(),
+					$this->schema->getUidColumnNameString(),
 				);
 				$this->query->and(
 					$referencedSchema->getReferenceForeignTableName($propertyName).'.'.$referencedSchema->getReferenceForeignColumnName($propertyName),

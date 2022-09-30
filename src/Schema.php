@@ -124,6 +124,14 @@ class Schema implements \JsonSerializable
 		else
 			return $this->getColumnName($this->uIdPropertyName);
 	}
+	public function getUIdColumnNameString(): ?string
+	{
+		$name = $this->getUIdColumnName();
+		if(is_array($name))
+			return implode(', ', $name);
+
+		return $name;
+	}
 	public function getUIdPropertyName(): string|array|null
 	{
 		return $this->uIdPropertyName;
@@ -135,6 +143,14 @@ class Schema implements \JsonSerializable
 
 		$this->uIdPropertyName = $name;
 	}
+	public function addUIdPropertyName(string ...$name): void
+	{
+		if(empty($this->uIdPropertyName))
+			$this->uIdPropertyName = [];
+
+		$this->uIdPropertyName += $name;
+	}
+
 	public function hasUId(): bool
 	{
 		if(!isset($this->uIdPropertyName))
@@ -162,6 +178,14 @@ class Schema implements \JsonSerializable
 			}, $this->uIdPropertyName);
 		} else
 			return $this->getColumnType($this->uIdPropertyName);
+	}
+	public function getUIdColumnTypeString(): ?string
+	{
+		$type = $this->getUIdColumnType();
+		if(is_array($type))
+			return implode(', ', $type);
+
+		return $type;
 	}
 
 	public function hasReference(int|string $key): bool
@@ -317,6 +341,14 @@ class Schema implements \JsonSerializable
 		}
 
 		return null;
+	}
+	public function getColumnTypeString(int|string $key): ?string
+	{
+		$types = $this->getColumnType($key);
+		if(is_array($types))
+			return implode(', ', $types);
+
+		return $types;
 	}
 	public function setColumnType(int|string $key, string $type): void
 	{
@@ -552,7 +584,7 @@ class Schema implements \JsonSerializable
 				//}
 
 				if($modelAttribute->isId) {
-					$schema->setUIdPropertyName($propertyReflection->getName());
+					$schema->addUIdPropertyName($propertyReflection->getName());
 				}
 			}
 		}
@@ -597,7 +629,7 @@ class Schema implements \JsonSerializable
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::ManyToOne => $modelAttribute->columnName ?? $propertyName,
-				Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnName() ?? 'id',
+				Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnNameString() ?? 'id',
 			});
 
 			switch($modelAttribute->cardinality) {
@@ -737,7 +769,7 @@ class Schema implements \JsonSerializable
 				$schema->setColumnAutoIncrement($methodReflection->getName(), $methodAttribute->autoIncrement);
 
 				if($methodAttribute->isId) {
-					$schema->setUIdPropertyName($methodReflection->getName());
+					$schema->addUIdPropertyName($methodReflection->getName());
 				}
 			}
 		}
@@ -851,7 +883,7 @@ class Schema implements \JsonSerializable
 		foreach($columns as $columnName => $propertyName) {
 
 			$str.= '`'. $columnName .'` ';
-			$str.= $this->getColumnType($propertyName);
+			$str.= $this->getColumnTypeString($propertyName);
 			$str.= ($this->isColumnNullable($propertyName) ?? $this->isReferenceNullable($propertyName))?'':' NOT NULL';
 			if($this->hasColumnDefaultValue($propertyName)) {
 				$str.= ' DEFAULT ';
@@ -874,7 +906,7 @@ class Schema implements \JsonSerializable
 			$str.= ', ';
 		}
 
-		if($primaryColumnName = $this->getUIdColumnName())
+		if($primaryColumnName = $this->getUIdColumnNameString())
 			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`), ';
 
 		foreach(array_keys($this->references) as $propertyName) {
@@ -888,7 +920,7 @@ class Schema implements \JsonSerializable
 			if(!$referencedSchema)
 				continue;
 
-			$str.= 'CONSTRAINT `'. $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnName() .'`) ';
+			$str.= 'CONSTRAINT `'. $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnNameString() .'`) ';
 			$str.= 'ON DELETE '. ($this->isReferenceNullable($propertyName)? 'SET NULL' : ($this->getReferenceType($propertyName) == $className ? 'RESTRICT' : 'CASCADE')) . ' ';
 			$str.= 'ON UPDATE CASCADE, ';
 		}
@@ -921,14 +953,14 @@ class Schema implements \JsonSerializable
 
 		$str = 'CREATE TABLE `'. $this->getReferenceForeignTableName($propertyName) .'` (';
 
-		$str.= '`'. $this->getReferenceForeignColumnName($propertyName) .'` ' . $this->getUIdColumnType() . ', ';
+		$str.= '`'. $this->getReferenceForeignColumnName($propertyName) .'` ' . $this->getUIdColumnTypeString() . ', ';
 
-		$str.= '`'. $this->getReferenceForeignRightColumnName($propertyName) .'` ' . $referencedSchema->getUIdColumnType() . ', ';
+		$str.= '`'. $this->getReferenceForeignRightColumnName($propertyName) .'` ' . $referencedSchema->getUIdColumnTypeString() . ', ';
 
 		$str.= 'PRIMARY KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`, `'. $this->getReferenceForeignRightColumnName($propertyName) .'`), ';
 
-		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`) REFERENCES `'. $this->getTableName() .'` (`'. $this->getUIdColumnName() .'`) ON DELETE CASCADE ON UPDATE CASCADE, ';
-		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignRightColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnName() .'`) ON DELETE CASCADE ON UPDATE CASCADE';
+		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`) REFERENCES `'. $this->getTableName() .'` (`'. $this->getUIdColumnNameString() .'`) ON DELETE CASCADE ON UPDATE CASCADE, ';
+		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignRightColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnNameString() .'`) ON DELETE CASCADE ON UPDATE CASCADE';
 
 		return $str.') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
 	}
@@ -1009,8 +1041,8 @@ class Schema implements \JsonSerializable
 
 		$str.= PHP_EOL;
 		$str.= '-- Begining of export --'. PHP_EOL;
-		// $str.= '-- Ignore foreign keys checks while creating tables.'. PHP_EOL;
-		// $str.= 'SET foreign_key_checks = 0;'. PHP_EOL;
+		$str.= '-- Ignore foreign keys checks while creating tables.'. PHP_EOL;
+		$str.= 'SET foreign_key_checks = 0;'. PHP_EOL;
 		$str.= PHP_EOL;
 
 		$str.= '-- Creating entities tables.'. PHP_EOL;
@@ -1047,8 +1079,8 @@ class Schema implements \JsonSerializable
 		$str.= PHP_EOL;
 
 		$str.= PHP_EOL;
-		// $str.= '-- Do not ignore foreign keys checks anymore.'. PHP_EOL;
-		// $str.= 'SET foreign_key_checks = 1;'. PHP_EOL;
+		$str.= '-- Do not ignore foreign keys checks anymore.'. PHP_EOL;
+		$str.= 'SET foreign_key_checks = 1;'. PHP_EOL;
 		$str.= PHP_EOL;
 		$str.= '-- End of export --'. PHP_EOL;
 
