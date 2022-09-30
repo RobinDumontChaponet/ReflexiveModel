@@ -53,13 +53,13 @@ abstract class ModelStatement
 
 	protected static function _setModel(Model $model): void
 	{
-		if(is_string($model->getId()) || empty($model->getId()) || $model->getId()<0 || enum_exists($model::class))
+		if(is_string($model->getModelId()) || empty($model->getModelId()) || $model->getModelId()<0 || enum_exists($model::class))
 			return;
 
 		if(static::$useInternalCache)
-			static::$models[$model::class][$model->getId()] = $model;
+			static::$models[$model::class][$model->getModelId()] = $model;
 
-		static::$cache?->set('model_'.$model::class.'_'.$model->getId(), $model, static::$cacheTTL);
+		static::$cache?->set('model_'.$model::class.'_'.$model->getModelId(), $model, static::$cacheTTL);
 	}
 
 	// private ?\PDO $database;
@@ -238,7 +238,7 @@ abstract class ModelStatement
 				$this->query->and(
 					$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
 					$comparator,
-					$value->getId(),
+					$value->getModelId(),
 				);
 			}
 		} else {

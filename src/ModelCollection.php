@@ -212,7 +212,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			/** @psalm-suppress NoInterfaceProperties */
 			return isset($this[$model->name]);
 		} else
-			return isset($this[$model->getId()]);
+			return isset($this[$model->getModelId()]);
 	}
 
 	/*

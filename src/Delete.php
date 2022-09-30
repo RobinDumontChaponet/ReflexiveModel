@@ -15,7 +15,7 @@ class Delete extends ModelStatement
 	{
 		parent::__construct($model::class);
 		$this->query = new Query\Delete();
-		$this->where('id', Comparator::EQUAL, $model->getId());
+		$this->where('id', Comparator::EQUAL, $model->getModelId());
 	}
 
 	/*

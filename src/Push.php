@@ -65,7 +65,7 @@ abstract class Push extends ModelStatement
 											$column['columnName'],
 											match($type->getName()) {
 												'DateTime' => $value->format('Y-m-d H:i:s'),
-												'Reflexive\Model\Model' => $value->getId(),
+												'Reflexive\Model\Model' => $value->getModelId(),
 												default => $value->__toString(),
 											}
 										);
@@ -103,7 +103,7 @@ abstract class Push extends ModelStatement
 					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
 					if(isset($reference['columnName']) && !is_null($value)) {
 						/** @psalm-suppress UndefinedMethod */
-						$this->query->set($reference['columnName'], $value->getId());
+						$this->query->set($reference['columnName'], $value->getModelId());
 					}
 				}
 			}
@@ -123,7 +123,7 @@ abstract class Push extends ModelStatement
 					if($value instanceof ModelCollection) { // TODO : this is temporary
 						foreach($value->getAddedKeys() as $addedKey) {
 							$referencedQuery = new Query\Insert();
-							$referencedQuery->set($reference['foreignColumnName'], $this->model->getId())
+							$referencedQuery->set($reference['foreignColumnName'], $this->model->getModelId())
 								->set($reference['foreignRightColumnName'], $addedKey)
 								->from($reference['foreignTableName']);
 
@@ -135,7 +135,7 @@ abstract class Push extends ModelStatement
 						}
 						foreach($value->getRemovedKeys() as $removedKey) {
 							$referencedQuery = new Query\Delete();
-							$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $this->model->getId())
+							$referencedQuery->where($reference['foreignColumnName'], Comparator::EQUAL, $this->model->getModelId())
 								->and($reference['foreignRightColumnName'], Comparator::EQUAL, $removedKey)
 								->from($reference['foreignTableName']);
 

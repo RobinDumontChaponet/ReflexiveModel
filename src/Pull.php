@@ -39,7 +39,7 @@ abstract class Pull extends ModelStatement
 				$this->query->and(
 					$referencedSchema->getReferenceForeignTableName($propertyName).'.'.$referencedSchema->getReferenceForeignColumnName($propertyName),
 					$comparator,
-					$reference->getId(),
+					$reference->getModelId(),
 				);
 			}
 		} else {

@@ -12,13 +12,13 @@ class Update extends Push
 	public function __construct(Model &$model)
 	{
 		$this->query = new Query\Update();
-		// $this->where('id', Comparator::EQUAL, $model->getId());
+		// $this->where('id', Comparator::EQUAL, $model->getModelId());
 
 		parent::__construct($model);
 		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {
-			$this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getId());
+			$this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getModelId());
 		}
 	}
 

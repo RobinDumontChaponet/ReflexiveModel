@@ -14,7 +14,7 @@ use Composer\Script\Event;
 
 const PHP_TAB = "\t";
 
-abstract class Model implements \JsonSerializable, SCRUDInterface
+abstract class Model implements SCRUDInterface
 {
 	protected static array $getters = [];
 	protected static array $setters = [];
@@ -26,6 +26,8 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 	public bool $ignoreModifiedProperties = false;
 	public bool $updateUnmodified = false;
 	public bool $updateReferences = true;
+
+	protected int|string|array $modelId = -1;
 
 	public static function getPropertyMaxLength(string $className, string $propertyName): int
 	{
@@ -78,16 +80,29 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		}
 	}
 
-    public function __construct(
-		#[Property]
-		#[Column('id', isId: true, type: 'BIGINT(20) UNSIGNED', autoIncrement: true)]
-		protected int|string|array $id = -1,
-	)
+	public function __construct()
 	{
-		if(is_array($id) && count($id) == 1)
-			$this->id = array_values($id)[0];
-
 		static::initModelAttributes();
+	}
+
+	public function getModelId(): int|string|array
+	{
+		$schema = Schema::initFromAttributes($this::class);
+		if($schema)
+			return $schema->getModelIdString($this);
+
+		return null;
+	}
+
+	public function setModelId(int|string ...$id): void
+	{
+		// if(count($id) == 1)
+		// 	$id = array_values($id)[0];
+
+		$schema = Schema::initFromAttributes($this::class);
+		if($schema)
+			foreach($id as $key => $value)
+				$schema->setModelId($this, $key, $value);
 	}
 
 	public function __wakeup()
@@ -95,23 +110,10 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 		static::initModelAttributes();
 	}
 
-    public function getId(): int|string|array
-    {
-        return $this->id;
-    }
-
-    public function setId(int|string ...$id): void
-    {
-		if(count($id) == 1)
-			$id = array_values($id)[0];
-
-        $this->id = $id;
-    }
-
-    public function __toString()
-    {
-        return  static::class.' [ id: '.$this->id.(((!get_parent_class())) ? ' ]' : ';  ');
-    }
+	public function __toString()
+	{
+		return '{'.static::class.'}';
+	}
 
 	public function __debugInfo(): array
 	{
@@ -123,13 +125,6 @@ abstract class Model implements \JsonSerializable, SCRUDInterface
 
 		return $array;
 	}
-
-    public function jsonSerialize(): mixed
-    {
-        return [
-            'id' => $this->getId(),
-        ];
-    }
 
 	private function &getValue(string $name): mixed
 	{

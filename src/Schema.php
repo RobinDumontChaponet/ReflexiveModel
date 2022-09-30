@@ -151,6 +151,38 @@ class Schema implements \JsonSerializable
 		$this->uIdPropertyName += $name;
 	}
 
+	public function getModelId(Model $model): int|string|array
+	{
+		$propertyNames = $this->getUIdPropertyName();
+		if(empty($propertyNames))
+			return -1;
+
+		$classReflection = new ReflectionClass($model::class);
+		if(is_array($propertyNames)) {
+			$id = [];
+			foreach($propertyNames as $propertyName) {
+				$id[$propertyName] = $classReflection->getProperty($propertyName)->getValue($model);
+			}
+
+			return $id;
+		}
+
+		return $classReflection->getProperty($propertyNames);
+	}
+	public function getModelIdString(Model $model): int|string|array
+	{
+		$id = $this->getModelId($model);
+		if(is_array($id))
+			return implode(', ', $id);
+
+		return $id;
+	}
+	public function setModelId(Model $model, string $propertyName, int|string $value): void
+	{
+		$classReflection = new ReflectionClass($model::class);
+		$classReflection?->getProperty($propertyName)?->setValue($model, $value);
+	}
+
 	public function hasUId(): bool
 	{
 		if(!isset($this->uIdPropertyName))

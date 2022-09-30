@@ -8,7 +8,7 @@ use Reflexive\Core\Comparator;
 
 trait ModelEnum
 {
-	public function getId(): int|string
+	public function getModelId(): int|string
 	{
 		return $this->name;
 	}
