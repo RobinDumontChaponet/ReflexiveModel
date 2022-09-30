@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use Exception;
 use ReflectionClass;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
 use Psr\SimpleCache;
+use ReflectionParameter;
 
 class Schema implements \JsonSerializable
 {
@@ -537,7 +539,27 @@ class Schema implements \JsonSerializable
 
 								if(!empty($modelAttribute->defaultValue))
 									$schema->setColumnDefaultValue($propertyReflection->getName(), $modelAttribute->defaultValue);
-								elseif($propertyReflection->hasDefaultValue())
+								elseif($propertyReflection->isPromoted()) {
+									try {
+										$parameterReflection = new ReflectionParameter([$className, '__construct'], $propertyReflection->getName());
+
+										$defaultValue = $parameterReflection->getDefaultValue();
+									} catch (\ReflectionException) {
+										if(false !== $parentClassReflection = $reflection->getParentClass()) {
+											try {
+												$parameterReflection = new ReflectionParameter([$parentClassReflection->getName(), '__construct'], $propertyReflection->getName());
+
+												$defaultValue = $parameterReflection->getDefaultValue();
+											} catch (\ReflectionException) {
+												$defaultValue = null;
+											}
+										}
+									} finally {
+										if($defaultValue)
+											$schema->setColumnDefaultValue($propertyReflection->getName(), $defaultValue);
+									}
+
+								} elseif($propertyReflection->hasDefaultValue())
 									$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue());
 
 								if($type->isBuiltin()) { // PHP builtin types
