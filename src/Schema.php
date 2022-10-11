@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Exception;
 use ReflectionClass;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
@@ -18,6 +17,7 @@ class Schema implements \JsonSerializable
 	public static bool $debug = false;
 
 	public bool $useModelNames = true;
+	public bool $inheritParentColumns = true;
 
 	/*
 	 * $columns[string propertyName] = [
@@ -517,6 +517,9 @@ class Schema implements \JsonSerializable
 	private static function reflectColumnPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getProperties() as $propertyReflection) {
+			if(!$schema->inheritParentColumns && $propertyReflection->class !== $className)
+				continue;
+
 			foreach($propertyReflection->getAttributes(Column::class) as $attributeReflection) {
 				if($schema->hasColumn($propertyReflection->getName()))
 					continue;
@@ -647,6 +650,9 @@ class Schema implements \JsonSerializable
 	private static function reflectReferencePropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getProperties() + $reflection->getReflectionConstants() as $propertyReflection) {
+			if(!$schema->inheritParentColumns && $propertyReflection->class !== $className)
+				continue;
+
 			foreach($propertyReflection->getAttributes(Reference::class) as $attributeReflection) {
 				$modelAttribute = $attributeReflection->newInstance();
 
@@ -745,6 +751,9 @@ class Schema implements \JsonSerializable
 	private static function reflectColumnMethodsAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getMethods() as $methodReflection) {
+			if(!$schema->inheritParentColumns && $methodReflection->class !== $className)
+				continue;
+
 			foreach($methodReflection->getAttributes(Column::class) as $attributeReflection) {
 				if($schema->hasColumn($methodReflection->getName()))
 					continue;
@@ -838,27 +847,22 @@ class Schema implements \JsonSerializable
 				$classReflection = new ReflectionClass($className);
 				$useModelNames = true;
 
-				// get attributes of class : SchemaAttribute
-				foreach($classReflection->getAttributes(SchemaAttribute::class) as $attributeReflection) {
-					$attribute = $attributeReflection->newInstance();
-					$useModelNames = $attribute->useModelNames;
-					break;
-				}
-
 				// get attributes of class : Table
 				foreach($classReflection->getAttributes(Table::class) as $attributeReflection) {
 					$attribute =  $attributeReflection->newInstance();
 					if(!empty($attribute->tableName) || $useModelNames) {
 						$schema = new static($attribute->tableName ?? $className);
 						static::_setSchema($className, $schema);
+
+						$schema->inheritParentColumns = $attribute->inheritColumns;
+						$schema->useModelNames = $attribute->useModelNames;
 						break;
 					} else
 						throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No table name.');
+
 				}
 
 				if(isset($schema)) {
-					$schema->useModelNames = $useModelNames;
-
 					if($classReflection->isEnum()) { // is enum
 						$schema->setEnum(true);
 						// $enumReflection = new ReflectionEnum($className);

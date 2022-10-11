@@ -11,6 +11,8 @@ class Table
 {
 	public function __construct(
 		public readonly ?string $tableName = null,
+		public readonly bool $inheritColumns = true,
+		public readonly ?bool $useModelNames = true,
 	)
 	{}
 }
