@@ -957,7 +957,7 @@ class Schema implements \JsonSerializable
 							'CURRENT_TIMESTAMP'
 						]
 					)? $defaultValue : '\''.$defaultValue.'\'',
-					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->value.'\'':'NULL',
+					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->name.'\'':'NULL',
 				};
 			}
 			$str.= $this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'';
