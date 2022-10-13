@@ -604,7 +604,7 @@ class Schema implements \JsonSerializable
 												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->name.'\'', $typeName::cases())).')'
 											);
 											if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
-												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->value);
+												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->name);
 											break;
 										} else {
 											$schema->setColumnType(
