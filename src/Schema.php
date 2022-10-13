@@ -150,7 +150,7 @@ class Schema implements \JsonSerializable
 		if(empty($this->uIdPropertyName))
 			$this->uIdPropertyName = [];
 
-		$this->uIdPropertyName += $name;
+		$this->uIdPropertyName += array_merge($this->uIdPropertyName, $name);
 	}
 
 	public function getModelId(Model $model): int|string|array
@@ -964,8 +964,13 @@ class Schema implements \JsonSerializable
 			$str.= ', ';
 		}
 
-		if($primaryColumnName = $this->getUIdColumnNameString())
-			$str.= 'PRIMARY KEY (`'.$primaryColumnName.'`), ';
+		if($primaryColumnName = $this->getUIdColumnName())
+			$str.= 'PRIMARY KEY (';
+
+			foreach($primaryColumnName as $columnName) {
+				$str.= '`'.$columnName.'`, ';
+			}
+			$str = rtrim($str, ', ').'), ';
 
 		foreach(array_keys($this->references) as $propertyName) {
 			if($this->getReferenceCardinality($propertyName) === Cardinality::ManyToMany)
