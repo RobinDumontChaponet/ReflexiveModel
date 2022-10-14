@@ -36,7 +36,7 @@ abstract class ModelStatement
 	// stats
 	public static int $instanciationCount = 0;
 
-	protected static function _getModel(string $className, int|string $id): ?Model
+	protected static function _getModel(string $className, int|string|array $id): ?Model
 	{
 		return static::$models[$className][$id] ?? static::$cache?->get('model_'.$className.'_'.$id) ?? null;
 	}
@@ -57,7 +57,7 @@ abstract class ModelStatement
 			return;
 
 		if(static::$useInternalCache)
-			static::$models[$model::class][$model->getModelId()] = $model;
+			static::$models[$model::class][$model->getModelIdString()] = $model;
 
 		static::$cache?->set('model_'.$model::class.'_'.$model->getModelId(), $model, static::$cacheTTL);
 	}
@@ -72,6 +72,7 @@ abstract class ModelStatement
 	protected function init(): void
 	{
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
+
 		if(!isset($schema))
 			throw new \Exception('Could not infer schema from Model "'.$this->modelClassName.'" attributes.');
 
@@ -80,8 +81,17 @@ abstract class ModelStatement
 
 			// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
 			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema): array {
-				if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
-					return [$rs->id, $object];
+				// if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
+
+				$uids = $schema->getUIdColumnName();
+				$id = '';
+				foreach($uids as $uid) {
+					$id.= $rs->$uid.', ';
+				}
+				$id = rtrim($id, ', ');
+
+				if(($object = static::_getModel($this->modelClassName, $id)) !== null)
+					return [$id, $object];
 
 				if(is_a($this->modelClassName, Model::class, true)) { // is model
 					$this->modelClassName::initModelAttributes();
@@ -171,7 +181,7 @@ abstract class ModelStatement
 					static::_setModel($object);
 					self::$instanciationCount++;
 
-					return [$rs->id, $object];
+					return [$id, $object];
 
 				} elseif(enum_exists($this->modelClassName) && is_a($this->modelClassName, SCRUDInterface::class, true)) { // is ModelEnum
 					return [$rs->{$schema->getColumnName('id')}, constant($this->modelClassName.'::'.$rs->{$schema->getColumnName('id')})];

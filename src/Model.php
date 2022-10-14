@@ -89,7 +89,15 @@ abstract class Model implements SCRUDInterface
 	{
 		$schema = Schema::initFromAttributes($this::class);
 		if($schema)
-			return $schema->getModelIdString($this);
+			return $schema->getModelId($this);
+
+		return null;
+	}
+	public function getModelIdString(): ?string
+	{
+		$schema = Schema::initFromAttributes($this::class);
+		if($schema)
+			return ''.$schema->getModelIdString($this);
 
 		return null;
 	}

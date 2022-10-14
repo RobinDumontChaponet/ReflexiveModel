@@ -18,7 +18,31 @@ class Update extends Push
 		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {
-			$this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getModelId());
+			$modelId = $this->model->getModelId();
+			$uids = $this->schema->getUIdColumnName();
+			if(is_array($uids) && count($uids) > 1) {
+				$value = $modelId[$uids[0]];
+				if(is_object($value) && enum_exists($value::class))
+					$value = $value->name;
+
+				$this->query->where($uids[0], Comparator::EQUAL, $value);
+
+				for ($i = 1; $i < count($uids); $i++) {
+					$value = $modelId[$uids[$i]];
+					if(is_object($value) && enum_exists($value::class))
+						$value = $value->name;
+
+					$this->query->and($uids[$i], Comparator::EQUAL, $value);
+				}
+			} else {
+				$id = $model->getModelId();
+				if(is_array($id))
+					$id = array_values($id)[0];
+
+				$this->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $id);
+			}
+
+			// $this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getModelId());
 		}
 	}
 

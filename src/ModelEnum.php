@@ -13,6 +13,11 @@ trait ModelEnum
 		return $this->name;
 	}
 
+	public function getModelIdString(): ?string
+	{
+		return $this->name;
+	}
+
 	/*
 	 * Active Record
 	 */

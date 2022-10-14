@@ -212,7 +212,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			/** @psalm-suppress NoInterfaceProperties */
 			return isset($this[$model->name]);
 		} else
-			return isset($this[$model->getModelId()]);
+			return isset($this[$model->getModelIdString()]);
 	}
 
 	/*
@@ -281,7 +281,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function offsetUnset(mixed $key): void
 	{
-		if(isset($this->objects[$key])) {
+		if($this->offsetExists($key)) {
 			unset($this->objects[$key]);
 			unset($this->keys[array_search($key, $this->keys)]);
 

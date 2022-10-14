@@ -124,7 +124,7 @@ class Schema implements \JsonSerializable
 		if(is_array($this->uIdPropertyName))
 			return array_map(fn($propertyName): ?string => $this->getColumnName($propertyName), $this->uIdPropertyName);
 		else
-			return $this->getColumnName($this->uIdPropertyName);
+			return [$this->getColumnName($this->uIdPropertyName)];
 	}
 	public function getUIdColumnNameString(): ?string
 	{
@@ -174,8 +174,17 @@ class Schema implements \JsonSerializable
 	public function getModelIdString(Model $model): int|string|array
 	{
 		$id = $this->getModelId($model);
-		if(is_array($id))
-			return implode(', ', $id);
+		if(is_array($id)) {
+			$str = '';
+			foreach($id as $value) {
+				if(is_object($value) && enum_exists($value::class))
+					$str.= $value->name;
+				else
+					$str.= $value;
+				$str.= ', ';
+			}
+			return rtrim($str, ', ');
+		}
 
 		return $id;
 	}
@@ -964,13 +973,16 @@ class Schema implements \JsonSerializable
 			$str.= ', ';
 		}
 
-		if($primaryColumnName = $this->getUIdColumnName())
+		if($primaryColumnName = $this->getUIdColumnName()) {
 			$str.= 'PRIMARY KEY (';
+
+			var_dump($className, $primaryColumnName);
 
 			foreach($primaryColumnName as $columnName) {
 				$str.= '`'.$columnName.'`, ';
 			}
 			$str = rtrim($str, ', ').'), ';
+		}
 
 		foreach(array_keys($this->references) as $propertyName) {
 			if($this->getReferenceCardinality($propertyName) === Cardinality::ManyToMany)

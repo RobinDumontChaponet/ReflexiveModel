@@ -21,7 +21,10 @@ class Create extends Push
 		$execute = parent::execute($database);
 
 		if($execute) {
-			$this->model->setId((int)$database->lastInsertId());
+			foreach($this->schema->getUIdColumnName() as $uid){
+				if($this->schema->isColumnAutoIncremented($uid))
+					$this->model->$uid = (int)$database->lastInsertId();
+			}
 
 			$this->constructOuterReferences();
 

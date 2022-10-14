@@ -7,6 +7,7 @@ use Reflexive\Core\Comparator;
 interface SCRUDInterface
 {
 	public function getModelId(): int|string|array;
+	public function getModelIdString(): ?string;
 
 	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement;
 
