@@ -757,6 +757,35 @@ class Schema implements \JsonSerializable
 		}
 	}
 
+// 	private static function reflectRelationPropertiesAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
+// 	{
+// 		foreach($reflection->getProperties() + $reflection->getReflectionConstants() as $propertyReflection) {
+// 			if(!$schema->inheritParentColumns && $propertyReflection->class !== $className)
+// 				continue;
+//
+// 			foreach($propertyReflection->getAttributes(Relation::class) as $attributeReflection) {
+// 				$modelAttribute = $attributeReflection->newInstance();
+//
+// 				// if($modelAttribute->type == $className)
+// 				// 	continue;
+//
+// 				static::reflectRelationPropertiesAttribute($modelAttribute, $schema, $className, $propertyReflection->getName());
+// 			}
+// 		}
+// 	}
+//
+// 	private static function reflectRelationPropertiesAttribute(Reference $modelAttribute, Schema &$schema, string $className, string $propertyName): void
+// 	{
+// 		if($schema->hasRelation($propertyName))
+// 			return;
+//
+// 		$schema->setRelationNullable($propertyName, $modelAttribute->nullable);
+//
+// 		$schema->setRelationColumnName($propertyName, $modelAttribute->columnName);
+//
+// 		$schema->setRelationType($propertyName, $modelAttribute->type);
+// 	}
+
 	private static function reflectColumnMethodsAttributes(ReflectionClass $reflection, Schema &$schema, string $className): void
 	{
 		foreach($reflection->getMethods() as $methodReflection) {
@@ -975,8 +1004,6 @@ class Schema implements \JsonSerializable
 
 		if($primaryColumnName = $this->getUIdColumnName()) {
 			$str.= 'PRIMARY KEY (';
-
-			var_dump($className, $primaryColumnName);
 
 			foreach($primaryColumnName as $columnName) {
 				$str.= '`'.$columnName.'`, ';
