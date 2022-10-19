@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use DateTime;
 use ReflectionProperty;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
@@ -82,10 +83,12 @@ abstract class Push extends ModelStatement
 					if($this->schema->isColumnNullable($propertyName)) {
 						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($column['columnName'], null);
-					} elseif(null !== ($defaultValue = $this->schema->getColumnDefaultValue($propertyName)) && !in_array(strtoupper($defaultValue), ['NOW()', 'CURRENT_TIMESTAMP'])) {
+					} elseif(in_array(strtoupper($this->schema->getColumnDefaultValue($propertyName)), ['NOW()', 'CURRENT_TIMESTAMP'])) {
+						$model->$propertyName = new DateTime();
+					} elseif(null !== ($defaultValue = $this->schema->getColumnDefaultValue($propertyName))) {
 						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($column['columnName'], $defaultValue);
-					} elseif(!in_array(strtoupper($this->schema->getColumnDefaultValue($propertyName)), ['NOW()', 'CURRENT_TIMESTAMP'])) {
+					} else {
 						throw new \TypeError('Column "'.$column['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property "'.$propertyName.'" of model "'.$model::class.'"');
 					}
 				}
