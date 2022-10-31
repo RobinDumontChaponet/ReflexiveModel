@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use ReflectionClass;
+use ReflectionParameter;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 
 use Psr\SimpleCache;
-use ReflectionParameter;
 
 class Schema implements \JsonSerializable
 {
@@ -18,6 +18,9 @@ class Schema implements \JsonSerializable
 
 	public bool $useModelNames = true;
 	public bool $inheritParentColumns = true;
+	protected bool $isSuperType = false;
+	protected ?string $superType = null; // super type className if any
+	protected array $subTypes = []; // [sub types classNames] if any
 
 	/*
 	 * $columns[string propertyName] = [
@@ -219,8 +222,10 @@ class Schema implements \JsonSerializable
 			return array_map(function($item) use($fn){
 				return is_array($item) ? array_map($fn, $item) : $fn($item);
 			}, $this->uIdPropertyName);
-		} else
+		} elseif(null !== $this->uIdPropertyName)
 			return $this->getColumnType($this->uIdPropertyName);
+
+		return null;
 	}
 	public function getUIdColumnTypeString(): ?string
 	{
@@ -497,6 +502,30 @@ class Schema implements \JsonSerializable
 	public function isComplete(): bool
 	{
 		return $this->complete;
+	}
+
+	public function isSuperType(): bool
+	{
+		return $this->isSuperType;
+	}
+	public function addSubType(string $subType): void
+	{
+		$this->subTypes[$subType] = '';
+		static::write(' ✓ added subType '. $subType, 36);
+	}
+	public function getSubTypes(): array
+	{
+		return array_keys($this->subTypes);
+	}
+
+	public function isSubTypeOf(string $className): bool
+	{
+		return $this->superType === $className;
+	}
+
+	public function getSuperType(): ?string
+	{
+		return $this->superType;
 	}
 
 	public function __toString()
@@ -876,11 +905,30 @@ class Schema implements \JsonSerializable
 		}
 	}
 
+	public static function write(string $message, int $colorCode = 0): void
+	{
+		// echo str_repeat(' ', static::$indent), "\e[1;", $colorCode, "m", $message, "\e[0m", PHP_EOL;
+	}
+	public static int $indent = 0;
+	public static function indent(): void
+	{
+		static::$indent++;
+	}
+	public static function deindent(): void
+	{
+		static::$indent--;
+
+		if(static::$indent < 0)
+			static::$indent = 0;
+	}
+
+
 	public static function initFromAttributes(string $className): ?static
 	{
 		$schema = static::_getSchema($className) ?? null;
 
 		if(!isset($schema)/* || !$schema->isComplete()*/) {
+
 			try {
 				$classReflection = new ReflectionClass($className);
 				$useModelNames = true;
@@ -890,10 +938,32 @@ class Schema implements \JsonSerializable
 					$attribute =  $attributeReflection->newInstance();
 					if(!empty($attribute->tableName) || $useModelNames) {
 						$schema = new static($attribute->tableName ?? $className);
+						static::write(' -> will init schema '. $schema->getTableName(), 33);
+						static::indent();
 						static::_setSchema($className, $schema);
 
-						$schema->inheritParentColumns = $attribute->inheritColumns;
+						$schema->inheritParentColumns = $attribute->inheritColumns ?? true;
 						$schema->useModelNames = $attribute->useModelNames;
+
+						$schema->isSuperType = $attribute->isSuperType;
+
+						if($attribute->isSubType) {
+							$parentClassReflection = $classReflection->getParentClass();
+
+							if(false !== $parentClassReflection) {
+								if($parentClassReflection->getName() != 'Reflexive\Model\Model') {
+									$schema->superType = $parentClassReflection->getName();
+
+									if(null === $attribute->inheritColumns)
+										$schema->inheritParentColumns = false;
+								} else {
+									throw new \InvalidArgumentException('Model set #[Table(isSubType: true)] but class only have Reflexive\Model\Model as parent.');
+								}
+							} else {
+								throw new \InvalidArgumentException('Model set #[Table(isSubType: true)] but class does not have a parent.');
+							}
+						}
+
 						break;
 					} else
 						throw new \InvalidArgumentException('Could not infer Schema from Model attributes. No table name.');
@@ -947,10 +1017,120 @@ class Schema implements \JsonSerializable
 						}
 					}
 
+					static::_setSchema($className, $schema);
+
+					if($schema->isSuperType) { // <WARNING, TEMPORARY : ressource intensive : will scan models to init schema of each subTypes>
+						// <temporary Composer dependancy…>
+						$otherClassNames = [];
+
+						$classLoader = null;
+						if(!isset($GLOBALS['__composer_autoload_files'])) {
+							$classLoader = require('vendor/autoload.php');
+						} else {
+							$iterator = new \RecursiveIteratorIterator(new \RecursiveArrayIterator(spl_autoload_functions()), \RecursiveIteratorIterator::CHILD_FIRST);
+							foreach($iterator as $v) {
+								if($v instanceof \Composer\Autoload\ClassLoader) {
+									$classLoader = $v;
+
+									break;
+								}
+							}
+						}
+
+						if(isset($classLoader)) {
+							if($classLoader->isClassMapAuthoritative()) {
+								// ClassMap is authoritative, using composer classMap
+								$otherClassNames = array_keys($classLoader->getClassMap());
+							} else {
+								// Using composer autoload with temporary classMap
+								foreach($classLoader->getFallbackDirsPsr4() as $filePath) {
+									$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
+									$otherClassNames += array_keys($classMap);
+								}
+							}
+							// </ temporary Composer dependancy…>
+
+							foreach($otherClassNames as $otherClassName) {
+								$potentialSubClassReflection = new ReflectionClass($otherClassName);
+								if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
+									$potentialSubClassSchema = static::getSchema($potentialSubClassReflection->getName());
+
+									static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
+									if(isset($potentialSubClassSchema) && $potentialSubClassSchema->isSubTypeOf($className)) {
+										static::write(' +> should add subType '. $potentialSubClassReflection->getName(), 35);
+										$schema->addSubType($potentialSubClassReflection->getName());
+									}
+								}
+							}
+						}
+
+						$subTypes = $schema->getSubTypes();
+						if(!empty($subTypes)) {
+							$schema->setColumnName('reflexive_subType', 'reflexive_subType');
+
+							$subTypesEnumString = 'ENUM(';
+							foreach($schema->getSubTypes() as $subTypeClassName) {
+								$subTypesEnumString.= '\''.$subTypeClassName.'\',';
+							}
+							$subTypesEnumString = rtrim($subTypesEnumString, ',').')';
+
+							$schema->setColumnType('reflexive_subType', $subTypesEnumString);
+						}
+					} // </WARNING>
+
+					if(!empty($schema->superType)) { // means we are in a subType
+						$superSchema = self::getSchema($schema->superType);
+						// $superSchema = static::_getSchema($schema->superType);
+
+						if(isset($superSchema)) { //  && $superSchema->isComplete()
+							$superSchema->addSubType($className);
+
+							static::write(' +✓ addToSuper '. $className, 37);
+
+							static::_setSchema($schema->superType, $superSchema);
+
+							foreach($superSchema->getUIdPropertyName() as $propertyName) {
+								$schema->addUIdPropertyName($propertyName);
+
+								$schema->setColumnName($propertyName, $superSchema->getColumnName($propertyName));
+								$schema->setColumnType($propertyName, $superSchema->getColumnType($propertyName));
+
+// 								$schema->setReferenceColumnName($propertyName, $superSchema->getColumnName($propertyName));
+//
+// 								$schema->setReferenceCardinality($propertyName, Cardinality::OneToOne);
+//
+// 								$schema->setReferenceNullable($propertyName, false);
+//
+// 								$schema->setReferenceForeignTableName(
+// 									$propertyName,
+// 									$superSchema->getTableName()
+// 								);
+// 								$schema->setReferenceForeignColumnName(
+// 									$propertyName,
+// 									$superSchema->getColumnName($propertyName)
+// 								);
+//
+// 								$schema->setReferenceType($propertyName, $schema->superType);
+							}
+						} else {
+							var_dump('NO SUPER SCHEMA');
+							throw new \LogicException('NO SUPER SCHEMA ?');
+						}
+					}
+
 					$schema->complete();
 					static::$initCount++;
 
 					static::_setSchema($className, $schema);
+
+
+
+
+
+
+
+
+
 					return $schema;
 				}
 			} catch (\ReflectionException $e) {
@@ -963,6 +1143,8 @@ class Schema implements \JsonSerializable
 
 	public function complete(): void
 	{
+		static::deindent();
+		static::write(' ✓ completed schema '. $this->tableName, 32);
 		$this->complete = true;
 	}
 
@@ -1033,6 +1215,7 @@ class Schema implements \JsonSerializable
 	public function dumpReferencesSQL(): array
 	{
 		$array = [];
+
 		foreach(array_keys($this->references) as $propertyName) {
 			if($dump = $this->dumpReferenceSQL($propertyName))
 				$array[$propertyName] = $dump;
@@ -1125,7 +1308,7 @@ class Schema implements \JsonSerializable
 	public static function dumpSQL(): string
 	{
 		$str = '';
-		// temporary duplication…
+		// <temporary Composer dependancy…>
 		$classNames = [];
 
 		$classLoader = require('vendor/autoload.php');
@@ -1139,7 +1322,7 @@ class Schema implements \JsonSerializable
 				$classNames += array_keys($classMap);
 			}
 		}
-		// temporary duplication…
+		// </ temporary Composer dependancy…>
 
 		$str.= PHP_EOL;
 		$str.= '-- Begining of export --'. PHP_EOL;
@@ -1151,15 +1334,14 @@ class Schema implements \JsonSerializable
 		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
-			if($classReflection->isAbstract())
+
+			$schema = self::getSchema($className);
+			if(!isset($schema) || ($classReflection->isAbstract() && !$schema->isSuperType()))
 				continue;
 
-			$tableDump = self::initFromAttributes($className)?->dumpSQLTable($className);
-			if(!empty($tableDump)) {
-				$str.= $tableDump. PHP_EOL;
-				$str.= PHP_EOL;
-				$count++;
-			}
+			$str.= $schema->dumpSQLTable($className). PHP_EOL;
+			$str.= PHP_EOL;
+			$count++;
 		}
 		$str.= '-- Created '.$count.' entities'. PHP_EOL;
 		$str.= PHP_EOL;

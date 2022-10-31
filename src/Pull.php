@@ -15,6 +15,20 @@ abstract class Pull extends ModelStatement
 	{
 		parent::__construct($modelClassName);
 		$this->query = new Query\Select();
+
+		// $this->init();
+
+		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
+		if(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			$this->query->join(
+				Query\Join::inner,
+				$superTypeSchema->getTableName(),
+				$superTypeSchema->getUIdColumnNameString(),
+				Comparator::EQUAL,
+				$schema->getTableName(),
+				$schema->getUidColumnNameString(),
+			);
+		}
 	}
 
 	public function with(string $propertyName, Comparator $comparator, Model $reference = null): static
@@ -55,6 +69,9 @@ abstract class Pull extends ModelStatement
 
 		if($this->schema->hasColumn($propertyName)) {
 			$this->query->order($this->schema->getColumnName($propertyName), $direction);
+		} elseif(($superType = $this->schema->getSuperType()) !== null) {
+			if(($superTypeSchema = Schema::getSchema($superType)) && $superTypeSchema->hasColumn($propertyName))
+				$this->query->order($superTypeSchema->getColumnName($propertyName), $direction);
 		} else {
 			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'". Could not order by.');
 		}

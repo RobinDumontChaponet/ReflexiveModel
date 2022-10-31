@@ -21,7 +21,7 @@ abstract class ModelStatement
 
 	// internals
 	protected Query\Composed $query;
-	protected ?Schema $schema;
+	protected ?Schema $schema = null;
 	protected ?Closure $instanciator;
 
 	protected array $referencedStatements = [];
@@ -80,8 +80,18 @@ abstract class ModelStatement
 			$classReflection = new ReflectionClass($this->modelClassName);
 
 			// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
-			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use ($classReflection, $schema): array {
+			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use (&$classReflection, $schema): array {
 				// if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
+
+				if($schema->isSuperType()) {
+					if(isset($rs->reflexive_subType) && is_a($rs->reflexive_subType, $this->modelClassName, true)) {
+						$modelClassName = $rs->reflexive_subType;
+						$classReflection = new ReflectionClass($modelClassName);
+					} else
+						throw new \LogicException('SUBTYPE DOES NOT EXISTS ?');
+				} else {
+					$modelClassName = $this->modelClassName;
+				}
 
 				$uids = $schema->getUIdColumnName();
 				$id = '';
@@ -90,14 +100,20 @@ abstract class ModelStatement
 				}
 				$id = rtrim($id, ', ');
 
-				if(($object = static::_getModel($this->modelClassName, $id)) !== null)
+				if(($object = static::_getModel($modelClassName, $id)) !== null)
 					return [$id, $object];
 
-				if(is_a($this->modelClassName, Model::class, true)) { // is model
-					$this->modelClassName::initModelAttributes();
+				if(is_a($modelClassName, Model::class, true)) { // is model
+					$modelClassName::initModelAttributes();
 					$object = $classReflection->newInstanceWithoutConstructor();
 
-					foreach($schema->getColumns() as $propertyName => $column) {
+					$columns = $schema->getColumns();
+					if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) // is subType of $superType
+						$columns+= $superTypeSchema->getColumns();
+
+					foreach($columns as $propertyName => $column) {
+						// var_dump($propertyName);
+
 						if(isset($column['columnName'])) {
 							$propertyReflection = $classReflection->getProperty($propertyName);
 							$propertyReflection->setAccessible(true);
@@ -110,7 +126,7 @@ abstract class ModelStatement
 												$propertyReflection->setValue($object, null);
 												break;
 											} else {
-												throw new \TypeError('Property "'.$propertyName.'" of model "'.$this->modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
+												throw new \TypeError('Property "'.$propertyName.'" of model "'.$modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
 											}
 										} else {
 											$value = $rs->{$column['columnName']};
@@ -193,6 +209,17 @@ abstract class ModelStatement
 
 		$this->schema = $schema;
 		$this->query->from($this->schema->getTableName());
+
+		// if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+		// 	$this->query->join(
+		// 		Query\Join::left,
+		// 		$this->schema->getReferenceForeignTableName($superTypeSchema->getTableName()),
+		// 		$this->schema->getReferenceForeignColumnName($superTypeSchema->getColumnName('id')),
+		// 		Comparator::EQUAL,
+		// 		$this->schema->getTableName(),
+		// 		$this->schema->getUidColumnNameString(),
+		// 	);
+		// }
 
 		return;
 

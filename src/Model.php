@@ -27,7 +27,9 @@ abstract class Model implements SCRUDInterface
 	public bool $updateUnmodified = false;
 	public bool $updateReferences = true;
 
-	protected int|string|array $modelId = -1;
+	// protected int|string|array $modelId = -1;
+	#[Property(readOnly: true)]
+	protected ?string $reflexive_subType = null;
 
 	public static function getPropertyMaxLength(string $className, string $propertyName): int
 	{
@@ -83,6 +85,7 @@ abstract class Model implements SCRUDInterface
 	public function __construct()
 	{
 		static::initModelAttributes();
+		$this->reflexive_subType = $this::class;
 	}
 
 	public function getModelId(): int|string|array
