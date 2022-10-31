@@ -289,7 +289,7 @@ abstract class ModelStatement
 
 	public function __toString(): string
 	{
-		return $this->query->__toString();
+		return $this->getQuery()->__toString();
 	}
 
 	public function getQuery (): Query\Composed
