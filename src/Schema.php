@@ -218,14 +218,13 @@ class Schema implements \JsonSerializable
 	public function getUIdColumnType(): string|array|null
 	{
 		if(is_array($this->uIdPropertyName)) {
-			// return array_map (fn($propertyName): ?string => $this->getColumnType($propertyName), $this->uIdPropertyName);
-			$fn = fn($propertyName): array|null|string => $this->getColumnType($propertyName);
+			$fn = fn($propertyName): array|null|string => $this->getColumnTypeString($propertyName);
 
 			return array_map(function($item) use($fn){
 				return is_array($item) ? array_map($fn, $item) : $fn($item);
 			}, $this->uIdPropertyName);
 		} elseif(null !== $this->uIdPropertyName)
-			return $this->getColumnType($this->uIdPropertyName);
+			return $this->getColumnTypeString($this->uIdPropertyName);
 
 		return null;
 	}
@@ -1093,14 +1092,14 @@ class Schema implements \JsonSerializable
 							foreach($superSchema->getUIdPropertyName() as $propertyName) {
 								$schema->addUIdPropertyName($propertyName);
 //
-// 								$schema->setColumnName($propertyName, $superSchema->getColumnName($propertyName));
-// 								$schema->setColumnType($propertyName, $superSchema->getColumnType($propertyName));
+								$schema->setColumnName($propertyName, $superSchema->getColumnName($propertyName));
+								$schema->setColumnType($propertyName, $superSchema->getColumnType($propertyName));
 //
 // 								if($superSchema->hasColumnDefaultValue($propertyName))
 // 									$schema->setColumnDefaultValue($propertyName, $superSchema->getColumnDefaultValue($propertyName));
 //
-// 								$schema->setColumnUnique($propertyName, $superSchema->isColumnUnique($propertyName));
-// 								$schema->setColumnNullable($propertyName, false);
+								$schema->setColumnUnique($propertyName, $superSchema->isColumnUnique($propertyName));
+								$schema->setColumnNullable($propertyName, false);
 
 								$schema->setReferenceColumnName($propertyName, $superSchema->getColumnName($propertyName));
 								$schema->setReferenceCardinality($propertyName, Cardinality::OneToOne);
