@@ -8,12 +8,12 @@ use Reflexive\Query;
 
 class Create extends Push
 {
-	public function __construct(Model &$model)
+	public function __construct(string $modelClassName, Model &$model)
 	{
 		$model->ignoreModifiedProperties = true;
 		$this->query = new Query\Insert();
 
-		parent::__construct($model);
+		parent::__construct($modelClassName, $model);
 	}
 
 	public function execute(\PDO $database): bool

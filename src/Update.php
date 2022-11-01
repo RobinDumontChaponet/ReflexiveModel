@@ -9,12 +9,12 @@ use Reflexive\Core\Comparator;
 
 class Update extends Push
 {
-	public function __construct(Model &$model)
+	public function __construct(string $modelClassName, Model &$model)
 	{
 		$this->query = new Query\Update();
 		// $this->where('id', Comparator::EQUAL, $model->getModelId());
 
-		parent::__construct($model);
+		parent::__construct($modelClassName, $model);
 		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {

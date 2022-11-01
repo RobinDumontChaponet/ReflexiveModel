@@ -238,7 +238,7 @@ abstract class Model implements SCRUDInterface
 
 	public static function create(Model &$model): Push
 	{
-		return new Create($model);
+		return new Create(static::class, $model);
 	}
 
 	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): Pull
@@ -253,12 +253,12 @@ abstract class Model implements SCRUDInterface
 
 	public static function update(Model &$model): Push
 	{
-		return new Update($model);
+		return new Update(static::class, $model);
 	}
 
 	public static function delete(Model &$model): ModelStatement
 	{
-		return new Delete($model);
+		return new Delete(static::class, $model);
 	}
 
 	public static function count(): Pull

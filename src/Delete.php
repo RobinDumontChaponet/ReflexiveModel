@@ -10,10 +10,11 @@ use Reflexive\Query;
 class Delete extends ModelStatement
 {
 	public function __construct(
+		string $modelClassName,
 		private Model $model
 	)
 	{
-		parent::__construct($model::class);
+		parent::__construct($modelClassName);
 		$this->query = new Query\Delete();
 		$this->where('id', Comparator::EQUAL, $model->getModelId());
 	}
