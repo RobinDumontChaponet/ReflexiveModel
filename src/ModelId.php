@@ -7,6 +7,6 @@ namespace Reflexive\Model;
 trait ModelId
 {
 	#[Property]
-	#[Column('id', isId: true, type: 'BIGINT(20) UNSIGNED', autoIncrement: true)]
+	#[Column('id', isId: true, type: 'BIGINT(20) UNSIGNED', autoIncrement: true, unique: true)]
 	protected int|string|array $id = -1;
 }
