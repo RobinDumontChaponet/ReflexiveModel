@@ -112,8 +112,6 @@ abstract class ModelStatement
 						$columns+= $superTypeSchema->getColumns();
 
 					foreach($columns as $propertyName => $column) {
-						// var_dump($propertyName);
-
 						if(isset($column['columnName'])) {
 							$propertyReflection = $classReflection->getProperty($propertyName);
 							$propertyReflection->setAccessible(true);
