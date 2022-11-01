@@ -20,10 +20,11 @@ abstract class Push extends ModelStatement
 	protected array $referencedQueries = [];
 
 	public function __construct(
+		string $modelClassName,
 		protected Model &$model
 	)
 	{
-		parent::__construct($model::class);
+		parent::__construct($modelClassName);
 
 		$this->init();
 
@@ -98,16 +99,25 @@ abstract class Push extends ModelStatement
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
 				$propertyReflection->setAccessible(true);
 
+				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
+					continue;
 
-				if($reference['cardinality'] === Cardinality::OneToMany) {
-					if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
-						continue;
+				switch($reference['cardinality']) {
+					case Cardinality::OneToOne:
+						$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
+						if(isset($reference['columnName']) && !is_null($value)) {
+							/** @psalm-suppress UndefinedMethod */
+							$this->query->set($reference['columnName'], $value);
+						}
+					break;
 
-					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
-					if(isset($reference['columnName']) && !is_null($value)) {
-						/** @psalm-suppress UndefinedMethod */
-						$this->query->set($reference['columnName'], $value->getModelIdString());
-					}
+					case Cardinality::OneToMany:
+						$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
+						if(isset($reference['columnName']) && !is_null($value)) {
+							/** @psalm-suppress UndefinedMethod */
+							$this->query->set($reference['columnName'], $value->getModelIdString());
+						}
+					break;
 				}
 			}
 		}
@@ -152,7 +162,29 @@ abstract class Push extends ModelStatement
 
 	public function execute(\PDO $database): bool
 	{
+		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			if(!$superType::create($this->model)->execute($database))
+				return false;
+
+			foreach($superTypeSchema->getUIdColumnName() as $uid){
+				if($superTypeSchema->isColumnAutoIncremented($uid)) {
+					/** @psalm-suppress UndefinedMethod */
+					$this->query->set($uid, $this->model->$uid);
+				}
+			}
+
+			echo $this->query;
+		}
+
+
 		$statement = $this->query->prepare($database);
 		return $statement->execute();
+	}
+
+	public function __toString(): string
+	{
+		// TODO : add superTypesQueries. ([superTypeName, superTypeSchema, superTypeQuery] from constructor ?)
+
+		return parent::__toString() .'; '. implode('; ', array_map(fn($query) => $query.'', $this->referencedQueries));
 	}
 }

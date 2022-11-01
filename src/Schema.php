@@ -119,15 +119,17 @@ class Schema implements \JsonSerializable
 		}
 	}
 
-	public function getUIdColumnName(): string|array|null
+	public function getUIdColumnName(): array|null
 	{
+
 		if(empty($this->uIdPropertyName))
 			return null;
 
 		if(is_array($this->uIdPropertyName))
-			return array_map(fn($propertyName): ?string => $this->getColumnName($propertyName), $this->uIdPropertyName);
-		else
-			return [$this->getColumnName($this->uIdPropertyName)];
+			return array_map(fn($propertyName): ?string => $this->getColumnName($propertyName) ?? $this->getReferenceColumnName($propertyName), $this->uIdPropertyName);
+		else {
+			return [$this->getColumnName($this->uIdPropertyName) ?? $this->getReferenceColumnName($this->uIdPropertyName)];
+		}
 	}
 	public function getUIdColumnNameString(): ?string
 	{
@@ -1080,7 +1082,6 @@ class Schema implements \JsonSerializable
 
 					if(!empty($schema->superType)) { // means we are in a subType
 						$superSchema = self::getSchema($schema->superType);
-						// $superSchema = static::_getSchema($schema->superType);
 
 						if(isset($superSchema)) { //  && $superSchema->isComplete()
 							$superSchema->addSubType($className);
@@ -1091,29 +1092,30 @@ class Schema implements \JsonSerializable
 
 							foreach($superSchema->getUIdPropertyName() as $propertyName) {
 								$schema->addUIdPropertyName($propertyName);
+//
+// 								$schema->setColumnName($propertyName, $superSchema->getColumnName($propertyName));
+// 								$schema->setColumnType($propertyName, $superSchema->getColumnType($propertyName));
+//
+// 								if($superSchema->hasColumnDefaultValue($propertyName))
+// 									$schema->setColumnDefaultValue($propertyName, $superSchema->getColumnDefaultValue($propertyName));
+//
+// 								$schema->setColumnUnique($propertyName, $superSchema->isColumnUnique($propertyName));
+// 								$schema->setColumnNullable($propertyName, false);
 
-								$schema->setColumnName($propertyName, $superSchema->getColumnName($propertyName));
-								$schema->setColumnType($propertyName, $superSchema->getColumnType($propertyName));
-
-// 								$schema->setReferenceColumnName($propertyName, $superSchema->getColumnName($propertyName));
-//
-// 								$schema->setReferenceCardinality($propertyName, Cardinality::OneToOne);
-//
-// 								$schema->setReferenceNullable($propertyName, false);
-//
-// 								$schema->setReferenceForeignTableName(
-// 									$propertyName,
-// 									$superSchema->getTableName()
-// 								);
-// 								$schema->setReferenceForeignColumnName(
-// 									$propertyName,
-// 									$superSchema->getColumnName($propertyName)
-// 								);
-//
-// 								$schema->setReferenceType($propertyName, $schema->superType);
+								$schema->setReferenceColumnName($propertyName, $superSchema->getColumnName($propertyName));
+								$schema->setReferenceCardinality($propertyName, Cardinality::OneToOne);
+								$schema->setReferenceNullable($propertyName, false);
+								$schema->setReferenceForeignTableName(
+									$propertyName,
+									$superSchema->getTableName()
+								);
+								$schema->setReferenceForeignColumnName(
+									$propertyName,
+									$superSchema->getColumnName($propertyName)
+								);
+								$schema->setReferenceType($propertyName, $schema->superType);
 							}
 						} else {
-							var_dump('NO SUPER SCHEMA');
 							throw new \LogicException('NO SUPER SCHEMA ?');
 						}
 					}
@@ -1122,14 +1124,6 @@ class Schema implements \JsonSerializable
 					static::$initCount++;
 
 					static::_setSchema($className, $schema);
-
-
-
-
-
-
-
-
 
 					return $schema;
 				}
