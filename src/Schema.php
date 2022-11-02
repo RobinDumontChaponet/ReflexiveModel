@@ -1127,7 +1127,7 @@ class Schema implements \JsonSerializable
 					return $schema;
 				}
 			} catch (\ReflectionException $e) {
-				throw new \InvalidArgumentException('Could not infer Schema from Model attributes. Reflection failed.', previous: $e);
+				throw new \InvalidArgumentException('Could not infer Schema from Model "'.$className.'" attributes. Reflection failed.', previous: $e);
 			}
 		}
 
