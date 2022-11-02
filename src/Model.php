@@ -208,6 +208,11 @@ abstract class Model implements SCRUDInterface
 		return null;
 	}
 
+	public static function getReflexiveSubTypes(): array
+	{
+		return Schema::getSchema(static::class)?->getSubTypes() ?? [];
+	}
+
 	private static function errorHandler(): null|callable
 	{
 		return function($level, $message, $file, $line) {
