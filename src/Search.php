@@ -12,15 +12,7 @@ class Search extends Pull
 
 		$this->init();
 
-		if(isset($this->schema)) {
-			if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
-				$this->query->setColumns(array_merge($this->schema->getColumnNames(), $superTypeSchema->getColumnNames()));
-			} else {
-				$this->query->setColumns($this->schema->getColumnNames());
-			}
-
-			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
-		}
+		$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 	}
 
 	/*

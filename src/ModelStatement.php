@@ -83,15 +83,7 @@ abstract class ModelStatement
 			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use (&$classReflection, $schema): array {
 				// if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
 
-				if($schema->isSuperType()) {
-					if(isset($rs->reflexive_subType) && is_a($rs->reflexive_subType, $this->modelClassName, true)) {
-						$modelClassName = $rs->reflexive_subType;
-						$classReflection = new ReflectionClass($modelClassName);
-					} else
-						throw new \LogicException('SUBTYPE DOES NOT EXISTS ?');
-				} else {
-					$modelClassName = $this->modelClassName;
-				}
+				$modelClassName = $this->modelClassName;
 
 				$uids = $schema->getUIdColumnName();
 				$id = '';
@@ -99,6 +91,14 @@ abstract class ModelStatement
 					$id.= $rs->$uid.', ';
 				}
 				$id = rtrim($id, ', ');
+
+				if($schema->isSuperType()) {
+					if(isset($rs->reflexive_subType) && is_a($rs->reflexive_subType, $this->modelClassName, true)) {
+						$subTypeQuery = new Read($rs->reflexive_subType);
+						return [$id, $subTypeQuery->where($schema->getUIdColumnNameString(), Comparator::EQUAL, $id)->execute($database)];
+					} else
+						throw new \LogicException('SUBTYPE DOES NOT EXISTS ?');
+				}
 
 				if(($object = static::_getModel($modelClassName, $id)) !== null)
 					return [$id, $object];
@@ -108,8 +108,14 @@ abstract class ModelStatement
 					$object = $classReflection->newInstanceWithoutConstructor();
 
 					$columns = $schema->getColumns();
-					if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) // is subType of $superType
+					$superType = $this->schema->getSuperType();
+					if($superType !== null) { // is subType of $superType
+						$superTypeSchema = Schema::getSchema($superType);
 						$columns+= $superTypeSchema->getColumns();
+					}
+
+					// if(isset($subTypeSchema)) // is superType
+					// 	$columns+= $subTypeSchema->getColumns();
 
 					foreach($columns as $propertyName => $column) {
 						if(isset($column['columnName'])) {
@@ -163,11 +169,21 @@ abstract class ModelStatement
 						}
 					}
 
-					if($schema->hasReferences() && empty($database))
+					$references = $schema->getReferences();
+					if(isset($superType)) // is subType of $superType
+						$references+= $superTypeSchema->getReferences();
+
+					// if(isset($subTypeSchema)) // is superType
+					// 	$references+= array_diff_key($subTypeSchema->getReferences(), array_flip($schema->getUIdPropertyName()));
+
+					if(!empty($references) && empty($database))
 						throw new \InvalidArgumentException('No database to use for subsequent queries.');
 
-					foreach($schema->getReferences() as $propertyName => $reference) {
+					foreach($references as $propertyName => $reference) {
 						if($referencedSchema = Schema::getSchema($reference['type'])) {
+							if(isset($superType) && $superType == $reference['type'])
+								continue;
+
 							$propertyReflection = $classReflection->getProperty($propertyName);
 
 							switch($reference['cardinality']) {
