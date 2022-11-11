@@ -597,7 +597,7 @@ class Schema implements \JsonSerializable
 											}
 										}
 									} finally {
-										if($defaultValue)
+										if(isset($defaultValue))
 											$schema->setColumnDefaultValue($propertyReflection->getName(), $defaultValue);
 									}
 
