@@ -1053,15 +1053,17 @@ class Schema implements \JsonSerializable
 							// </ temporary Composer dependancy…>
 
 							foreach($otherClassNames as $otherClassName) {
-								$potentialSubClassReflection = new ReflectionClass($otherClassName);
-								if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
-									var_dump($potentialSubClassReflection->getName());
-									$potentialSubClassSchema = static::getSchema($potentialSubClassReflection->getName());
+								if(class_exists($otherClassName, true)) {
+									$potentialSubClassReflection = new ReflectionClass($otherClassName);
+									if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
+										var_dump($otherClassName);
+										$potentialSubClassSchema = static::getSchema($otherClassName);
 
-									static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
-									if(isset($potentialSubClassSchema) && $potentialSubClassSchema->isSubTypeOf($className)) {
-										static::write(' +> should add subType '. $potentialSubClassReflection->getName(), 35);
-										$schema->addSubType($potentialSubClassReflection->getName());
+										static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
+										if(isset($potentialSubClassSchema) && $potentialSubClassSchema->isSubTypeOf($className)) {
+											static::write(' +> should add subType '. $potentialSubClassReflection->getName(), 35);
+											$schema->addSubType($potentialSubClassReflection->getName());
+										}
 									}
 								}
 							}
