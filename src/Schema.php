@@ -1053,7 +1053,7 @@ class Schema implements \JsonSerializable
 							// </ temporary Composer dependancy…>
 
 							foreach($otherClassNames as $otherClassName) {
-								if(class_exists($otherClassName, true)) {
+								if(class_exists($otherClassName, false)) {
 									$potentialSubClassReflection = new ReflectionClass($otherClassName);
 									if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
 										var_dump($otherClassName);
