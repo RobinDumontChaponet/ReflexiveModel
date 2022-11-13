@@ -1048,15 +1048,14 @@ class Schema implements \JsonSerializable
 									$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
 									$otherClassNames += array_keys($classMap);
 								}
-								var_dump($otherClassNames);
+								// var_dump($otherClassNames);
 							}
 							// </ temporary Composer dependancy…>
 
 							foreach($otherClassNames as $otherClassName) {
-								if(class_exists($otherClassName, false)) {
+								if(class_exists($otherClassName, true)) {
 									$potentialSubClassReflection = new ReflectionClass($otherClassName);
 									if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
-										var_dump($otherClassName);
 										$potentialSubClassSchema = static::getSchema($otherClassName);
 
 										static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
