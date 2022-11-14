@@ -933,6 +933,7 @@ class Schema implements \JsonSerializable
 			try {
 				$classReflection = new ReflectionClass($className);
 				$useModelNames = true;
+				$subTypeNames = [];
 
 				// get attributes of class : Table
 				foreach($classReflection->getAttributes(Table::class) as $attributeReflection) {
@@ -947,6 +948,7 @@ class Schema implements \JsonSerializable
 						$schema->useModelNames = $attribute->useModelNames;
 
 						$schema->isSuperType = $attribute->isSuperType;
+						$subTypeNames = $attribute->subTypes; // TEMPORARY
 
 						if($attribute->isSubType) {
 							$parentClassReflection = $classReflection->getParentClass();
@@ -1020,50 +1022,59 @@ class Schema implements \JsonSerializable
 
 					static::_setSchema($className, $schema);
 
-					if($schema->isSuperType) { // <WARNING, TEMPORARY : ressource intensive : will scan models to init schema of each subTypes>
-						// <temporary Composer dependancy…>
-						$otherClassNames = [];
+					if($schema->isSuperType) {
 
-						$classLoader = null;
-						if(!isset($GLOBALS['__composer_autoload_files'])) {
-							$classLoader = require('vendor/autoload.php');
-						} else {
-							$iterator = new \RecursiveIteratorIterator(new \RecursiveArrayIterator(spl_autoload_functions()), \RecursiveIteratorIterator::CHILD_FIRST);
-							foreach($iterator as $v) {
-								if($v instanceof \Composer\Autoload\ClassLoader) {
-									$classLoader = $v;
+						if(empty($subTypeNames)) {
+							// <WARNING, TEMPORARY : ressource intensive : will scan models to init schema of each subTypes>
+							// <temporary Composer dependancy…>
+							$otherClassNames = [];
 
-									break;
-								}
-							}
-						}
-
-						if(isset($classLoader)) {
-							if($classLoader->isClassMapAuthoritative()) {
-								// ClassMap is authoritative, using composer classMap
-								$otherClassNames = array_keys($classLoader->getClassMap());
+							$classLoader = null;
+							if(!isset($GLOBALS['__composer_autoload_files'])) {
+								$classLoader = require('vendor/autoload.php');
 							} else {
-								// Using composer autoload with temporary classMap
-								foreach($classLoader->getFallbackDirsPsr4() as $filePath) {
-									$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
-									$otherClassNames += array_keys($classMap);
+								$iterator = new \RecursiveIteratorIterator(new \RecursiveArrayIterator(spl_autoload_functions()), \RecursiveIteratorIterator::CHILD_FIRST);
+								foreach($iterator as $v) {
+									if($v instanceof \Composer\Autoload\ClassLoader) {
+										$classLoader = $v;
+
+										break;
+									}
 								}
-								// var_dump($otherClassNames);
 							}
-							// </ temporary Composer dependancy…>
 
-							foreach($otherClassNames as $otherClassName) {
-								if(class_exists($otherClassName, true)) {
-									$potentialSubClassReflection = new ReflectionClass($otherClassName);
-									if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
-										$potentialSubClassSchema = static::getSchema($otherClassName);
+							if(isset($classLoader)) {
+								if($classLoader->isClassMapAuthoritative()) {
+									// ClassMap is authoritative, using composer classMap
+									$otherClassNames = array_keys($classLoader->getClassMap());
+								} else {
+									// Using composer autoload with temporary classMap
+									foreach($classLoader->getFallbackDirsPsr4() as $filePath) {
+										$classMap = \Composer\Autoload\ClassMapGenerator::createMap($filePath);
+										$otherClassNames += array_keys($classMap);
+									}
+									// var_dump($otherClassNames);
+								}
+								// </ temporary Composer dependancy…>
 
-										static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
-										if(isset($potentialSubClassSchema) && $potentialSubClassSchema->isSubTypeOf($className)) {
-											static::write(' +> should add subType '. $potentialSubClassReflection->getName(), 35);
-											$schema->addSubType($potentialSubClassReflection->getName());
+								foreach($otherClassNames as $otherClassName) {
+									if(class_exists($otherClassName, true)) {
+										$potentialSubClassReflection = new ReflectionClass($otherClassName);
+										if(!$potentialSubClassReflection->isAbstract() && $potentialSubClassReflection->isSubclassOf($className)) {
+											$potentialSubClassSchema = static::getSchema($otherClassName);
+
+											static::write(' ? may add subType '. $potentialSubClassReflection->getName(), 34);
+											if(isset($potentialSubClassSchema) && $potentialSubClassSchema->isSubTypeOf($className)) {
+												static::write(' +> should add subType '. $potentialSubClassReflection->getName(), 35);
+												$schema->addSubType($potentialSubClassReflection->getName());
+											}
 										}
 									}
+								}
+							} else {
+								foreach($subTypeNames as $subTypeName) { //TEMPORARY TOO
+									static::write(' +> should add subType '. $subTypeName, 35);
+									$schema->addSubType($subTypeName);
 								}
 							}
 						}

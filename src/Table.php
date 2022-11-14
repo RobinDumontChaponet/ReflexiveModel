@@ -15,6 +15,7 @@ class Table
 		public readonly bool $isSuperType = false,
 		public readonly bool $isSubType = false,
 		public readonly ?bool $useModelNames = true,
+		public readonly bool $subTypes = [],
 	)
 	{}
 }
