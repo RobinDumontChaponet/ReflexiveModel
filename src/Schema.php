@@ -1071,27 +1071,27 @@ class Schema implements \JsonSerializable
 										}
 									}
 								}
-							} else {
-								foreach($subTypeNames as $subTypeName) { //TEMPORARY TOO
-									static::write(' +> should add subType '. $subTypeName, 35);
-									$schema->addSubType($subTypeName);
-								}
+							}
+						} else {
+							foreach($subTypeNames as $subTypeName) { //TEMPORARY TOO
+								static::write(' +> should add subType '. $subTypeName, 35);
+								$schema->addSubType($subTypeName);
 							}
 						}
+					}
 
-						$subTypes = $schema->getSubTypes();
-						if(!empty($subTypes)) {
-							$schema->setColumnName('reflexive_subType', 'reflexive_subType');
+					$subTypes = $schema->getSubTypes();
+					if(!empty($subTypes)) {
+						$schema->setColumnName('reflexive_subType', 'reflexive_subType');
 
-							$subTypesEnumString = 'ENUM(';
-							foreach($schema->getSubTypes() as $subTypeClassName) {
-								$subTypesEnumString.= '\''.$subTypeClassName.'\',';
-							}
-							$subTypesEnumString = rtrim($subTypesEnumString, ',').')';
-
-							$schema->setColumnType('reflexive_subType', $subTypesEnumString);
+						$subTypesEnumString = 'ENUM(';
+						foreach($schema->getSubTypes() as $subTypeClassName) {
+							$subTypesEnumString.= '\''.$subTypeClassName.'\',';
 						}
-					} // </WARNING>
+						$subTypesEnumString = rtrim($subTypesEnumString, ',').')';
+
+						$schema->setColumnType('reflexive_subType', $subTypesEnumString);
+					}
 
 					if(!empty($schema->superType)) { // means we are in a subType
 						$superSchema = self::getSchema($schema->superType);
