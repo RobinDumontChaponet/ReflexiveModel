@@ -172,10 +172,7 @@ abstract class Push extends ModelStatement
 					$this->query->set($uid, $this->model->$uid);
 				}
 			}
-
-			echo $this->query;
 		}
-
 
 		$statement = $this->query->prepare($database);
 		return $statement->execute();
