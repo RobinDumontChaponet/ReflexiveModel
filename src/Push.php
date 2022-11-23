@@ -162,18 +162,6 @@ abstract class Push extends ModelStatement
 
 	public function execute(\PDO $database): bool
 	{
-		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
-			if(!$superType::create($this->model)->execute($database))
-				return false;
-
-			foreach($superTypeSchema->getUIdColumnName() as $uid){
-				if($superTypeSchema->isColumnAutoIncremented($uid)) {
-					/** @psalm-suppress UndefinedMethod */
-					$this->query->set($uid, $this->model->$uid);
-				}
-			}
-		}
-
 		$statement = $this->query->prepare($database);
 		return $statement->execute();
 	}

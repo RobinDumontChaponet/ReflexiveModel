@@ -48,6 +48,18 @@ class Update extends Push
 
 	public function execute(\PDO $database): bool
 	{
+		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			if(!$superType::update($this->model)->execute($database))
+				return false;
+
+			foreach($superTypeSchema->getUIdColumnName() as $uid){
+				if($superTypeSchema->isColumnAutoIncremented($uid)) {
+					/** @psalm-suppress UndefinedMethod */
+					$this->query->set($uid, $this->model->$uid);
+				}
+			}
+		}
+
 		$execute = (!$this->model->updateUnmodified && empty($this->model->getModifiedPropertiesNames())) ? null : parent::execute($database);
 
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
