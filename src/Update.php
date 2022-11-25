@@ -15,7 +15,6 @@ class Update extends Push
 		// $this->where('id', Comparator::EQUAL, $model->getModelId());
 
 		parent::__construct($modelClassName, $model);
-		$this->constructOuterReferences();
 
 		if(isset($this->schema)) {
 			$modelId = $this->model->getModelId();
@@ -60,12 +59,15 @@ class Update extends Push
 			}
 		}
 
-		$execute = (!$this->model->updateUnmodified && empty($this->model->getModifiedPropertiesNames())) ? null : parent::execute($database);
+		$this->constructOuterReferences();
+
+		//empty($this->model->getModifiedPropertiesNames())
+		$execute = (!$this->model->updateUnmodified && empty($this->query->getSets())) ? null : parent::execute($database);
 
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 			if($referencedQuery instanceof Query\Composed)
 				$execute ??= $referencedQuery->prepare($database)->execute();
-			elseif($referencedQuery instanceof  ModelStatement) {
+			elseif($referencedQuery instanceof ModelStatement) {
 				if($this->model->updateReferences)
 					$execute ??= $referencedQuery->execute($database);
 			}
