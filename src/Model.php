@@ -133,6 +133,7 @@ abstract class Model implements SCRUDInterface
 		unset($array['ignoreModifiedProperties']);
 		unset($array['updateUnmodified']);
 		unset($array['updateReferences']);
+		unset($array['reflexive_subType']);
 
 		return $array;
 	}
