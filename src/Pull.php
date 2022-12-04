@@ -19,9 +19,7 @@ abstract class Pull extends ModelStatement
 		// $this->init();
 
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
-		if($schema->isSuperType()) {
-			$this->query->setColumns(array_merge($schema->getUIdColumnName(), ['reflexive_subType']));
-		} elseif(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+		if(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
 			$this->query->join(
 				Query\Join::inner,
 				$superTypeSchema->getTableName(),
@@ -30,10 +28,6 @@ abstract class Pull extends ModelStatement
 				$schema->getTableName(),
 				$schema->getUidColumnNameString(),
 			);
-
-			$this->query->setColumns(array_merge($schema->getColumnNames(), $superTypeSchema->getColumnNames()));
-		} else {
-			$this->query->setColumns($schema->getColumnNames());
 		}
 	}
 

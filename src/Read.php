@@ -6,6 +6,22 @@ namespace Reflexive\Model;
 
 class Read extends Pull
 {
+	public function __construct(string $modelClassName)
+	{
+		parent::__construct($modelClassName);
+
+		$this->init();
+
+		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
+		if($schema->isSuperType()) {
+			$this->query->setColumns(array_merge($schema->getUIdColumnName(), ['reflexive_subType']));
+		} elseif(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			$this->query->setColumns(array_merge($schema->getColumnNames(), $superTypeSchema->getColumnNames()));
+		} else {
+			$this->query->setColumns($schema->getColumnNames());
+		}
+	}
+
 	public function execute(\PDO $database): ?Model
 	{
 		$this->init();
