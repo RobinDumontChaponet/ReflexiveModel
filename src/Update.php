@@ -64,12 +64,14 @@ class Update extends Push
 		//empty($this->model->getModifiedPropertiesNames())
 		$execute = (!$this->model->updateUnmodified && empty($this->query->getSets())) ? null : parent::execute($database);
 
-		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
-			if($referencedQuery instanceof Query\Composed)
-				$execute ??= $referencedQuery->prepare($database)->execute();
-			elseif($referencedQuery instanceof ModelStatement) {
-				if($this->model->updateReferences)
-					$execute ??= $referencedQuery->execute($database);
+		if($execute) {
+			foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
+				if($referencedQuery instanceof Query\Composed)
+					$execute = $referencedQuery->prepare($database)->execute();
+				elseif($referencedQuery instanceof ModelStatement) {
+					if($this->model->updateReferences)
+						$execute = $referencedQuery->execute($database);
+				}
 			}
 		}
 
