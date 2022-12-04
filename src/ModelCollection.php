@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Closure;
+use InvalidArgumentException;
 use PDO;
 use PDOStatement;
 
@@ -44,7 +45,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	public function __construct(
 		private string $className,
-		private ?PDOStatement $statement = null,
+		private PDOStatement|\Reflexive\Query\Composed|null $statement = null,
 		private ?Closure $generator = null,
 		private ?int $limit = null, // used to determine if is list
 		private int $offset = 0, // used to determine if is list
@@ -52,6 +53,13 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	)
 	{
 		$this->init();
+
+		if($statement instanceof \Reflexive\Query\Composed) {
+			if(null === $database)
+			throw new InvalidArgumentException('Statement is Reflexive\Query but no database given to prepare it.');
+
+			$this->reset = true;
+		}
 	}
 
 	public function __sleep(): array
@@ -79,7 +87,9 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private function init(): void
 	{
-		$this->count = $this->statement?->rowCount() ?? 0;
+		if(!empty($this->statement) && $this->statement instanceof PDOStatement && null === $this->statement->errorCode())
+			$this->count = $this->statement?->rowCount() ?? 0;
+
 		$this->exhausted = false;
 	}
 
@@ -96,6 +106,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public function execute(?array $params = null): bool
 	{
 		$this->reset = false;
+
+		if($this->statement instanceof \Reflexive\Query\Composed) {
+			$this->statement = $this->statement->prepare($this->database);
+		}
 
 		$result = $this->statement?->execute($params);
 		$this->count = $this->statement?->rowCount() ?? 0;
@@ -115,7 +129,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 	private function fetchCurrent(): void
 	{
-		if($this->autoExecute && !empty($this->statement) && (null === $this->statement->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
 			$this->execute();
 		}
 
@@ -232,7 +246,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(empty($this->statement))
 			return null;
 
-		if($this->autoExecute && (null === $this->statement->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
 			$this->execute();
 		}
 
@@ -343,7 +357,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	 */
 	public function count(): int
 	{
-		if($this->autoExecute && !empty($this->statement) && (null === $this->statement->errorCode() || $this->reset)) {
+		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
 			$this->execute();
 		}
 

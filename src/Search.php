@@ -12,6 +12,16 @@ class Search extends Pull
 
 		$this->init();
 
+
+		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
+		if($schema->isSuperType()) {
+			$this->query->setColumns(array_merge($schema->getUIdColumnName(), ['reflexive_subType']));
+		} elseif(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			$this->query->setColumns(array_merge($schema->getColumnNames(), $superTypeSchema->getColumnNames()));
+		} else {
+			$this->query->setColumns($schema->getColumnNames());
+		}
+
 		$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 	}
 
@@ -24,7 +34,7 @@ class Search extends Pull
 
 		return new ModelCollection(
 			$this->modelClassName,
-			$this->query->prepare($database),
+			$this->query,
 			$this->getInstanciator(),
 			$this->query->getLimit(),
 			$this->query->getOffset() ?? 0,
