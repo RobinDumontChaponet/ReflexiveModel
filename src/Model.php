@@ -304,7 +304,7 @@ abstract class Model implements SCRUDInterface
 		$io->write('', true);
 		$count = 0;
 
-		$io->writeRaw('digraph G {');
+		$io->writeRaw('digraph {');
 		$io->writeRaw(PHP_TAB. 'edge [color=red, arrowsize=2];');
 		$io->writeRaw(PHP_TAB. 'node [shape=plaintext, color=white];'. PHP_EOL);
 
@@ -326,7 +326,7 @@ abstract class Model implements SCRUDInterface
 					/** @psalm-suppress UndefinedMethod */
 					$label.= '<tr><td align="right"><font color="grey64">+</font></td><td>'. implode(', ', array_map(fn($case) => '::'.$case->name, $className::cases())). '</td></tr>';
 
-				} elseif($className instanceof Model)  { // is Model
+				} elseif(is_a($className, Model::class, true))  { // is Model
 					$className::initModelAttributes();
 
 					// class properties
