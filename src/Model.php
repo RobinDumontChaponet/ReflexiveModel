@@ -318,6 +318,9 @@ abstract class Model implements SCRUDInterface
 
 			$schema = Schema::getSchema($className);
 			if($schema) {
+				// generated methods (with Property attribute)
+				$generatedMethods = [];
+
 				if($schema->isEnum()) { // is ModelEnum
 					// enum cases
 					/** @psalm-suppress UndefinedMethod */
@@ -358,8 +361,6 @@ abstract class Model implements SCRUDInterface
 
 					$label.= '<hr />';
 
-					// generated methods (with Property attribute)
-					$generatedMethods = [];
 					// getters
 					if(isset($className::$getters["$className"])) {
 						foreach($className::$getters["$className"] as $methodName => $propertyName) {
