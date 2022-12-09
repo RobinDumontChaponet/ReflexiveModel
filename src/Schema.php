@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use LogicException;
 use ReflectionClass;
 use ReflectionParameter;
 use ReflectionUnionType;
@@ -117,6 +118,33 @@ class Schema implements \JsonSerializable
 			$this->columns[$key] = ['columnName' => $name];
 			$this->columnNames[$key] = $name;
 		}
+	}
+
+	public function getColumnExtra(int|string $key): ?string
+	{
+		if($this->hasColumn($key))
+			return $this->columns[$key]['extra'];
+
+		return null;
+	}
+	public function setColumnExtra(int|string $key, ?string $extra): void
+	{
+		if(null === $extra) {
+			if($this->hasColumnExtra($key))
+				unset($this->columns[$key]['extra']);
+
+			return;
+		}
+
+		if($this->hasColumn($key)) {
+			$this->columns[$key]['extra'] = trim($extra);
+		} else {
+			$this->columns[$key] = ['extra' => trim($extra)];
+		}
+	}
+	public function hasColumnExtra(int|string $key): bool
+	{
+		return isset($this->columns[$key]['extra']);
 	}
 
 	public function getUIdColumnName(): array|null
@@ -569,6 +597,8 @@ class Schema implements \JsonSerializable
 					$schema->setColumnName($propertyReflection->getName(), $modelAttribute->name);
 				elseif($schema->useModelNames)
 					$schema->setColumnName($propertyReflection->getName(), $propertyReflection->getName());
+				else
+					throw new LogicException('Unamed column');
 
 				if(!empty($modelAttribute->type))
 					$schema->setColumnType($propertyReflection->getName(), $modelAttribute->type);
@@ -659,10 +689,10 @@ class Schema implements \JsonSerializable
 								}
 							}
 						} else {
-							throw new \LogicException('NO TYPE ?');
+							throw new LogicException('NO TYPE ?');
 						}
 					} else {
-						throw new \LogicException('NO TYPE ?');
+						throw new LogicException('NO TYPE ?');
 					}
 				}
 
@@ -679,9 +709,11 @@ class Schema implements \JsonSerializable
 					$schema->setColumnAutoIncrement($propertyReflection->getName(), $modelAttribute->autoIncrement);
 				//}
 
-				if($modelAttribute->isId) {
+				if($modelAttribute->isId)
 					$schema->addUIdPropertyName($propertyReflection->getName());
-				}
+
+				if(!empty($modelAttribute->extra))
+					$schema->setColumnExtra($propertyReflection->getName(), $modelAttribute->extra);
 			}
 		}
 	}
@@ -1187,7 +1219,10 @@ class Schema implements \JsonSerializable
 					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->name.'\'':'NULL',
 				};
 			}
-			$str.= $this->isColumnAutoIncremented($propertyName)?' AUTO_INCREMENT':'';
+			if($this->isColumnAutoIncremented($propertyName))
+				$str.= ' AUTO_INCREMENT';
+			elseif($this->hasColumnExtra($propertyName))
+				$str.= ' '.$this->getColumnExtra($propertyName);
 			$str.= ', ';
 		}
 
