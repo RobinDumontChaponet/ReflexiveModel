@@ -94,7 +94,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 				$this->cacheAll();
 				return count($this->objects);
 			} else {
-				return 0;
+				return $this->count;
 			}
 			// $countQuery = $this->className::count()->where();
 			// return $countQuery->execute($this->database);
