@@ -85,10 +85,28 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		];
 	}
 
+	private function rowCount(): int
+	{
+		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
+			if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
+				$this->execute();
+
+				$this->cacheAll();
+				return count($this->objects);
+			} else {
+				return 0;
+			}
+			// $countQuery = $this->className::count()->where();
+			// return $countQuery->execute($this->database);
+		} else {
+			return $this->statement?->rowCount();
+		}
+	}
+
 	private function init(): void
 	{
 		if(!empty($this->statement) && $this->statement instanceof PDOStatement && null === $this->statement->errorCode())
-			$this->count = $this->statement?->rowCount() ?? 0;
+			$this->count = $this->rowCount();
 
 		$this->exhausted = false;
 	}
@@ -112,7 +130,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		$result = $this->statement?->execute($params);
-		$this->count = $this->statement?->rowCount() ?? 0;
+		$this->count = $this->rowCount();
 
 		$this->isList = (0 === $this->offset && $this->limit == $this->count);
 
