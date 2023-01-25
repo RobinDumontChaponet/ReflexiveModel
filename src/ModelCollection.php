@@ -20,7 +20,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public static bool $debugInfo = false;
 
 	// Internal counters
-	private int $count = 0;
+	private ?int $count = null;
 
 	private int $index;
 	private int|string|null $lastKey;
@@ -88,14 +88,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private function rowCount(): int
 	{
 		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
-			if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
-				$this->execute();
-
-				$this->cacheAll();
-				return count($this->objects);
-			} else {
-				return $this->count;
+			if($this->count === null) {
+				$this->rewind();
 			}
+			return $this->count ?? count($this->objects);
 			// $countQuery = $this->className::count()->where();
 			// return $countQuery->execute($this->database);
 		} else {
@@ -132,7 +128,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		$result = $this->statement?->execute($params);
 		$this->count = $this->rowCount();
 
-		$this->isList = (0 === $this->offset && $this->limit == $this->count);
+		$this->isList = (0 === $this->offset && $this->limit == $this->count ?? 0);
 
 		return $result ?? false;
 	}
@@ -275,7 +271,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			if(!$this->exhausted) {
 				for(
 					$i = (($this->isList && is_int($key) && $key>=count($this->keys))? count($this->keys) : $this->offset);
-					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count);
+					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count ?? 0);
 					$i++
 				) {
 					[$k,] = $this->fetch($i);
@@ -308,6 +304,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(!in_array($key, $this->addedKeys))
 			$this->addedKeys[] = $key;
 
+		if(null === $this->count)
+			$this->count = 0;
 		$this->count++;
 	}
 
@@ -376,6 +374,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public function count(): int
 	{
 		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
+
 			$this->execute();
 		}
 
