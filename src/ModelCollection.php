@@ -271,7 +271,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			if(!$this->exhausted) {
 				for(
 					$i = (($this->isList && is_int($key) && $key>=count($this->keys))? count($this->keys) : $this->offset);
-					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count ?? 0);
+					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? count($this) ?? 0);
 					$i++
 				) {
 					[$k,] = $this->fetch($i);
