@@ -260,6 +260,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(empty($this->statement))
 			return null;
 
+		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
+			$this->rowCount();
+		}
+
 		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
 			$this->execute();
 		}
