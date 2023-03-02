@@ -274,10 +274,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count ?? 0);
 					$i++
 				) {
-					var_dump(' FETCH ');
 					[$k,] = $this->fetch($i);
 					if($k == $key)
 						break;
+					var_dump(' FETCH ');
 				}
 
 				return $this->objects[$key] ?? null;
