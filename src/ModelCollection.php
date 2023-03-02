@@ -90,6 +90,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
 			if($this->count === null) {
 				$this->rewind();
+
+				var_dump($this->count);
 			}
 			return $this->count ?? count($this->objects);
 			// $countQuery = $this->className::count()->where();
