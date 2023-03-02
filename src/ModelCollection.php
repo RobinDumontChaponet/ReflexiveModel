@@ -90,8 +90,6 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
 			if($this->count === null) {
 				$this->rewind();
-
-				var_dump($this->count);
 			}
 			return $this->count ?? count($this->objects);
 			// $countQuery = $this->className::count()->where();
@@ -104,7 +102,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private function init(): void
 	{
 		if(!empty($this->statement) && $this->statement instanceof PDOStatement && null === $this->statement->errorCode())
-			$this->count = $this->rowCount();
+			$this->count = null;//$this->rowCount();
 
 		$this->exhausted = false;
 	}
@@ -271,7 +269,6 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			return $object;
 		} else {
 			if(!$this->exhausted) {
-				var_dump($this->count);
 				for(
 					$i = (($this->isList && is_int($key) && $key>=count($this->keys))? count($this->keys) : $this->offset);
 					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $this->count ?? 0);
@@ -280,8 +277,6 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 					[$k,] = $this->fetch($i);
 					if($k == $key)
 						break;
-					var_dump(' FETCH ');
-					var_dump($this->objects[$key]);
 				}
 
 				return $this->objects[$key] ?? null;
