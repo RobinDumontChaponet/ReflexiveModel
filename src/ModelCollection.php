@@ -278,6 +278,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 					if($k == $key)
 						break;
 					var_dump(' FETCH ');
+					var_dump($this->objects[$key]);
 				}
 
 				return $this->objects[$key] ?? null;
