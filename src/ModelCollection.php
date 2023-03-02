@@ -269,9 +269,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			return $object;
 		} else {
 			if(!$this->exhausted) {
+				$count = count($this);
 				for(
-					$i = (($this->isList && is_int($key) && $key>=count($this->keys))? count($this->keys) : $this->offset);
-					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? count($this) ?? 0);
+					$i = (($this->isList && is_int($key) && $key>=$count)? $count : $this->offset);
+					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $count ?? 0);
 					$i++
 				) {
 					[$k,] = $this->fetch($i);
