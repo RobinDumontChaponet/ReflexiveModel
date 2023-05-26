@@ -1247,7 +1247,7 @@ class Schema implements \JsonSerializable
 				continue;
 
 			$str.= 'CONSTRAINT `'. $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnNameString() .'`) ';
-			$str.= 'ON DELETE '. ($this->isColumnNullable($propertyName)? 'SET NULL' : ($this->getReferenceType($propertyName) == $className ? 'RESTRICT' : 'CASCADE')) . ' ';
+			$str.= 'ON DELETE '. ($this->isReferenceNullable($propertyName)? 'SET NULL' : ($this->getReferenceType($propertyName) == $className ? 'RESTRICT' : 'CASCADE')) . ' ';
 			$str.= 'ON UPDATE CASCADE, ';
 		}
 
