@@ -57,7 +57,7 @@ abstract class Pull extends ModelStatement
 				);
 			}
 		} else {
-			throw new \TypeError('Reference "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+			throw new \TypeError('Reference "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'" / referencedSchema "'.$referencedSchema->getTableName().'"');
 		}
 
 		return $this;

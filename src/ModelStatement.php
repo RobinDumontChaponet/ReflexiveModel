@@ -277,20 +277,32 @@ abstract class ModelStatement
 			// 	throw new \TypeError('Schema "'.$value::class.'" not set');
 			// }
 
-			if($this->schema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
-				$this->query->join(
-					Query\Join::inner,
-					$this->schema->getReferenceForeignTableName($propertyName),
-					$this->schema->getReferenceForeignColumnName($propertyName),
-					Comparator::EQUAL,
-					$this->schema->getTableName(),
-					$this->schema->getUidColumnNameString(),
-				);
-				$this->query->and(
-					$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
-					$comparator,
-					$value->getModelId(),
-				);
+			switch($this->schema->getReferenceCardinality($propertyName)){
+				case Cardinality::OneToMany:
+					$this->query->and(
+						$this->schema->getTableName().'.'.$this->schema->getReferenceColumnName($propertyName),
+						$comparator,
+						$value->getModelId(),
+					);
+				break;
+				case Cardinality::ManyToMany:
+					$this->query->join(
+						Query\Join::inner,
+						$this->schema->getReferenceForeignTableName($propertyName),
+						$this->schema->getReferenceForeignColumnName($propertyName),
+						Comparator::EQUAL,
+						$this->schema->getTableName(),
+						$this->schema->getUidColumnNameString(),
+					);
+					$this->query->and(
+						$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
+						$comparator,
+						$value->getModelId(),
+					);
+				break;
+				default:
+					throw new \LogicException('Case not implemented');
+				break;
 			}
 		} else {
 			throw new \TypeError('Property (or Reference) "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
