@@ -11,6 +11,7 @@ use ReflectionUnionType;
 use ReflectionIntersectionType;
 
 use Psr\SimpleCache;
+use Reflexive\Query;
 
 class Schema implements \JsonSerializable
 {
@@ -1194,45 +1195,28 @@ class Schema implements \JsonSerializable
 
 	public function dumpSQLTable(string $className): string
 	{
-		$str = 'CREATE TABLE `'. $this->getTableName() .'` (';
+		$query = new \Reflexive\Query\CreateTable($this->getTableName());
 
-		$columns = array_flip($this->columnNames);
-		foreach($columns as $columnName => $propertyName) {
+		foreach($this->columnNames as $propertyName => $columnName) {
+			$query->addColumn(
+				name: $columnName,
+				type: $this->getColumnTypeString($propertyName),
+				nullable: $this->isColumnNullable($propertyName) ?? $this->isReferenceNullable($propertyName),
+				defaultValue: $this->getColumnDefaultValue($propertyName),
+				extra: $this->isColumnAutoIncremented($propertyName) ? Query\ColumnExtra::autoIncrement : null
+			);
 
-			$str.= '`'. $columnName .'` ';
-			$str.= $this->getColumnTypeString($propertyName);
-			$str.= ($this->isColumnNullable($propertyName) ?? $this->isReferenceNullable($propertyName))?'':' NOT NULL';
-			if($this->hasColumnDefaultValue($propertyName)) {
-				$str.= ' DEFAULT ';
-				$defaultValue = $this->getColumnDefaultValue($propertyName);
-				$defaultValueType = gettype($defaultValue);
-				$str.= match($defaultValueType) {
-					'integer', 'double', 'float' => $defaultValue,
-					'boolean' => (int)$defaultValue,
-					'string' => in_array(
-						$defaultValue,
-						[
-							'NOW()',
-							'CURRENT_TIMESTAMP'
-						]
-					)? $defaultValue : '\''.$defaultValue.'\'',
-					'object' => enum_exists($defaultValue::class)?'\''.$defaultValue->name.'\'':'NULL',
-				};
-			}
-			if($this->isColumnAutoIncremented($propertyName))
-				$str.= ' AUTO_INCREMENT';
-			elseif($this->hasColumnExtra($propertyName))
-				$str.= ' '.$this->getColumnExtra($propertyName);
-			$str.= ', ';
+			// TODO
+			// @TODO
+			// if($this->isColumnAutoIncremented($propertyName))
+			// 	$str.= ' AUTO_INCREMENT';
+			// elseif($this->hasColumnExtra($propertyName))
+			// 	$str.= ' '.$this->getColumnExtra($propertyName);
+			// $str.= ', ';
 		}
 
-		if($primaryColumnName = $this->getUIdColumnName()) {
-			$str.= 'PRIMARY KEY (';
-
-			foreach($primaryColumnName as $columnName) {
-				$str.= '`'.$columnName.'`, ';
-			}
-			$str = rtrim($str, ', ').'), ';
+		foreach($this->getUIdColumnName() as $columnName) {
+			$query->setPrimary($columnName);
 		}
 
 		foreach(array_keys($this->references) as $propertyName) {
@@ -1246,12 +1230,17 @@ class Schema implements \JsonSerializable
 			if(!$referencedSchema)
 				continue;
 
-			$str.= 'CONSTRAINT `'. $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnNameString() .'`) ';
-			$str.= 'ON DELETE '. ($this->isReferenceNullable($propertyName)? 'SET NULL' : ($this->getReferenceType($propertyName) == $className ? 'RESTRICT' : 'CASCADE')) . ' ';
-			$str.= 'ON UPDATE CASCADE, ';
+			$query->addConstraint(
+				name: $this->getTableName() .'_'. $this->getReferenceColumnName($propertyName),
+				key: $this->getReferenceColumnName($propertyName),
+				referencedTableName: $referencedSchema->getTableName(),
+				referencedKey: $referencedSchema->getUIdColumnNameString(),
+				onDelete: ($this->isReferenceNullable($propertyName)? Query\ConstraintAction::setNull : ($this->getReferenceType($propertyName) == $className ? Query\ConstraintAction::restrict : Query\ConstraintAction::cascade)),
+				onUpdate: Query\ConstraintAction::cascade
+			);
 		}
 
-		return rtrim($str, ', ').') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ' .self::dumpEnumModelsValuesSQL($className);
+		return $query.' ' .self::dumpEnumModelsValuesSQL($className);
 	}
 
 	public function dumpReferencesSQL(): array
@@ -1278,18 +1267,37 @@ class Schema implements \JsonSerializable
 		if(!$referencedSchema)
 			return null;
 
-		$str = 'CREATE TABLE `'. $this->getReferenceForeignTableName($propertyName) .'` (';
+		$query = new Query\CreateTable($this->getReferenceForeignTableName($propertyName));
 
-		$str.= '`'. $this->getReferenceForeignColumnName($propertyName) .'` ' . $this->getUIdColumnTypeString() . ', ';
+		$query->addColumn(
+			name: $this->getReferenceForeignColumnName($propertyName),
+			type: $this->getUIdColumnTypeString(),
+			isPrimary: true
+		);
+		$query->addColumn(
+			name: $this->getReferenceForeignRightColumnName($propertyName),
+			type: $referencedSchema->getUIdColumnTypeString(),
+			isPrimary: true
+		);
 
-		$str.= '`'. $this->getReferenceForeignRightColumnName($propertyName) .'` ' . $referencedSchema->getUIdColumnTypeString() . ', ';
+		$query->addConstraint(
+			name: $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignColumnName($propertyName),
+			key: $this->getReferenceForeignColumnName($propertyName),
+			referencedTableName: $this->getTableName(),
+			referencedKey: $this->getUIdColumnNameString(),
+			onDelete: Query\ConstraintAction::cascade,
+			onUpdate: Query\ConstraintAction::cascade
+		);
+		$query->addConstraint(
+			name: $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName),
+			key: $this->getReferenceForeignRightColumnName($propertyName),
+			referencedTableName: $referencedSchema->getTableName(),
+			referencedKey: $referencedSchema->getUIdColumnNameString(),
+			onDelete: Query\ConstraintAction::cascade,
+			onUpdate: Query\ConstraintAction::cascade
+		);
 
-		$str.= 'PRIMARY KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`, `'. $this->getReferenceForeignRightColumnName($propertyName) .'`), ';
-
-		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignColumnName($propertyName) .'`) REFERENCES `'. $this->getTableName() .'` (`'. $this->getUIdColumnNameString() .'`) ON DELETE CASCADE ON UPDATE CASCADE, ';
-		$str.= 'CONSTRAINT `'. $this->getReferenceForeignTableName($propertyName) .'_'. $this->getReferenceForeignRightColumnName($propertyName) .'` FOREIGN KEY (`'. $this->getReferenceForeignRightColumnName($propertyName) .'`) REFERENCES `'. $referencedSchema->getTableName() .'` (`'. $referencedSchema->getUIdColumnNameString() .'`) ON DELETE CASCADE ON UPDATE CASCADE';
-
-		return $str.') ENGINE=INNODB DEFAULT CHARSET=utf8mb4; ';
+		return $query.'';
 	}
 
 	public static function dumpEnumModelsValuesSQL(string $className): ?string
