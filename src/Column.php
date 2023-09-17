@@ -17,7 +17,7 @@ class Column
 		public readonly bool|null $nullable = null,
 		public readonly bool $autoIncrement = false,
 		public readonly mixed $defaultValue = null,
-		public readonly ?string $extra = null,
+		public readonly ?\Reflexive\Query\ColumnExtra $extra = null,
 	)
 	{}
 }

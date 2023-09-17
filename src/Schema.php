@@ -121,14 +121,14 @@ class Schema implements \JsonSerializable
 		}
 	}
 
-	public function getColumnExtra(int|string $key): ?string
+	public function getColumnExtra(int|string $key): ?Query\ColumnExtra
 	{
 		if($this->hasColumn($key))
 			return $this->columns[$key]['extra'];
 
 		return null;
 	}
-	public function setColumnExtra(int|string $key, ?string $extra): void
+	public function setColumnExtra(int|string $key, ?Query\ColumnExtra $extra): void
 	{
 		if(null === $extra) {
 			if($this->hasColumnExtra($key))
@@ -138,9 +138,9 @@ class Schema implements \JsonSerializable
 		}
 
 		if($this->hasColumn($key)) {
-			$this->columns[$key]['extra'] = trim($extra);
+			$this->columns[$key]['extra'] = $extra;
 		} else {
-			$this->columns[$key] = ['extra' => trim($extra)];
+			$this->columns[$key] = ['extra' => $extra];
 		}
 	}
 	public function hasColumnExtra(int|string $key): bool
@@ -1203,16 +1203,8 @@ class Schema implements \JsonSerializable
 				type: $this->getColumnTypeString($propertyName),
 				nullable: $this->isColumnNullable($propertyName) ?? $this->isReferenceNullable($propertyName),
 				defaultValue: $this->getColumnDefaultValue($propertyName),
-				extra: $this->isColumnAutoIncremented($propertyName) ? Query\ColumnExtra::autoIncrement : null
+				extra: $this->isColumnAutoIncremented($propertyName) ? Query\ColumnExtra::autoIncrement : ($this->hasColumnExtra($propertyName) ? $this->getColumnExtra($propertyName) : null)
 			);
-
-			// TODO
-			// @TODO
-			// if($this->isColumnAutoIncremented($propertyName))
-			// 	$str.= ' AUTO_INCREMENT';
-			// elseif($this->hasColumnExtra($propertyName))
-			// 	$str.= ' '.$this->getColumnExtra($propertyName);
-			// $str.= ', ';
 		}
 
 		foreach($this->getUIdColumnName() as $columnName) {
