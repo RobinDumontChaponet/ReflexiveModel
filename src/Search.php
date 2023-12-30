@@ -12,7 +12,6 @@ class Search extends Pull
 
 		$this->init();
 
-
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
 		if($schema->isSuperType()) {
 			$this->query->setColumns(array_merge($schema->getUIdColumnName(), ['reflexive_subType']));
@@ -21,8 +20,6 @@ class Search extends Pull
 		} else {
 			$this->query->setColumns($schema->getColumnNames());
 		}
-
-		$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 	}
 
 	/*
@@ -31,6 +28,9 @@ class Search extends Pull
 	public function execute(\PDO $database): ModelCollection
 	{
 		$this->init();
+
+		// if(!$this->query->isOrdered())
+			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 
 		return new ModelCollection(
 			$this->modelClassName,
