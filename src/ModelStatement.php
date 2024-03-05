@@ -154,6 +154,7 @@ abstract class ModelStatement
 														$object,
 														match($typeName) {
 															\DateTime::class => new \DateTime($value),
+															'stdClass' => json_decode($value),
 															default => new $typeName($value)
 														}
 													);

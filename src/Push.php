@@ -40,7 +40,9 @@ abstract class Push extends ModelStatement
 				if($propertyReflection->isInitialized($this->model) && null !== $propertyReflection->getValue($this->model)) {
 					$value = $propertyReflection->getValue($this->model);
 
-					if($type = $propertyReflection->getType()) {
+					if($column['type'] == 'json') {
+						$this->query->set($column['columnName'], json_encode($value));
+					} elseif($type = $propertyReflection->getType()) {
 						if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
 							foreach($types as $type) {
 								if($type->isBuiltin()) { // PHP builtin types
@@ -66,6 +68,7 @@ abstract class Push extends ModelStatement
 										$this->query->set(
 											$column['columnName'],
 											match($type->getName()) {
+												'stdClass' => json_encode($value),
 												'DateTime' => $value->format('Y-m-d H:i:s'),
 												'Reflexive\Model\Model' => $value->getModelId(),
 												default => $value->__toString(),
@@ -81,12 +84,13 @@ abstract class Push extends ModelStatement
 						}
 					}
 				} else {
+					$defaultValue = $this->schema->getColumnDefaultValue($propertyName);
 					if($this->schema->isColumnNullable($propertyName)) {
 						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($column['columnName'], null);
-					} elseif(in_array(strtoupper($this->schema->getColumnDefaultValue($propertyName)), ['NOW()', 'CURRENT_TIMESTAMP'])) {
+					} elseif(in_array(strtoupper($defaultValue ?? ''), ['NOW()', 'CURRENT_TIMESTAMP'])) {
 						$model->$propertyName = new DateTime();
-					} elseif(null !== ($defaultValue = $this->schema->getColumnDefaultValue($propertyName))) {
+					} elseif(null !== $defaultValue) {
 						/** @psalm-suppress UndefinedMethod */
 						$this->query->set($column['columnName'], $defaultValue);
 					} else {
