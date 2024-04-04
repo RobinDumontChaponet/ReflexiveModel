@@ -287,23 +287,23 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return null;
 	}
 
-	public function offsetSet(mixed $key, mixed $object): void
+	public function offsetSet(mixed $offset, mixed $value): void
 	{
-		if(isset($key) && isset($this[$key]) && $this[$key] instanceof Model) { // already in collection
-			if($object->hasModifiedProperties() && !in_array($key, $this->modifiedKeys)) { // is modified
-				$this->modifiedKeys[] = $key;
+		if(isset($offset) && isset($this[$offset]) && $this[$offset] instanceof Model) { // already in collection
+			if($value->hasModifiedProperties() && !in_array($offset, $this->modifiedKeys)) { // is modified
+				$this->modifiedKeys[] = $offset;
 			}
 			return;
 		}
 
-		if(is_null($key)) {
-			$this->objects[] = $object;
-			$key = array_key_last($this->objects);
+		if(is_null($offset)) {
+			$this->objects[] = $value;
+			$offset = array_key_last($this->objects);
 		}
 
-		$this->objects[$key] = $object;
-		if(!in_array($key, $this->addedKeys))
-			$this->addedKeys[] = $key;
+		$this->objects[$offset] = $value;
+		if(!in_array($offset, $this->addedKeys))
+			$this->addedKeys[] = $offset;
 
 		if(null === $this->count)
 			$this->count = 0;
