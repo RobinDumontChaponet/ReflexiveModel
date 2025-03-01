@@ -256,7 +256,7 @@ abstract class ModelStatement
 		return $this;
 	}
 
-	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model|DateTimeInterface $value = null): static
+	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model|DateTimeInterface|null $value = null): static
 	{
 		if(empty($this->query->getConditions()))
 			$this->init();
@@ -328,13 +328,13 @@ abstract class ModelStatement
 		return $this;
 	}
 
-	public function limit(int $limit = null): static
+	public function limit(?int $limit = null): static
 	{
 		$this->query->limit($limit);
 
 		return $this;
 	}
-	public function offset(int $offset = null): static
+	public function offset(?int $offset = null): static
 	{
 		$this->query->offset($offset);
 
