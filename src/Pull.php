@@ -31,7 +31,7 @@ abstract class Pull extends ModelStatement
 		}
 	}
 
-	public function with(string $propertyName, Comparator $comparator, Model $reference = null): static
+	public function with(string $propertyName, Comparator $comparator, ?Model $reference = null): static
 	{
 		$this->init();
 

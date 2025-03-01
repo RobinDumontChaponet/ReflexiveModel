@@ -9,11 +9,11 @@ interface SCRUDInterface
 	public function getModelId(): int|string|array;
 	public function getModelIdString(): ?string;
 
-	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement;
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): ModelStatement;
 
 	public static function create(Model &$model): ModelStatement;
 
-	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement;
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): ModelStatement;
 
 	public static function update(Model &$model): ModelStatement;
 

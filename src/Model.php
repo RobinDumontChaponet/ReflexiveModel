@@ -232,7 +232,7 @@ abstract class Model implements SCRUDInterface
 	 * Active Record
 	 */
 
-	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): Pull
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): Pull
 	{
 		$query = new Search(static::class);
 
@@ -247,7 +247,7 @@ abstract class Model implements SCRUDInterface
 		return new Create(static::class, $model);
 	}
 
-	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): Pull
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): Pull
 	{
 		$query = new Read(static::class);
 

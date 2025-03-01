@@ -21,7 +21,7 @@ trait ModelEnum
 	/*
 	 * Active Record
 	 */
-	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
+	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): ModelStatement
 	{
 
 		$query = new Search(static::class);
@@ -37,7 +37,7 @@ trait ModelEnum
 		return new Create(static::class, $model);
 	}
 
-	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool $value = null): ModelStatement
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): ModelStatement
 	{
 		$query = new Read(static::class);
 
