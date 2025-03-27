@@ -12,7 +12,7 @@ class Reference
 	public function __construct(
 		public readonly Cardinality $cardinality = Cardinality::OneToMany,
 		public readonly ?string $type = null,
-		public readonly bool $nullable = true,
+		public readonly ?bool $nullable = null,
 		public readonly ?string $columnName = null,
 		public readonly ?string $foreignColumnName = null,
 		public readonly ?string $foreignTableName = null,
