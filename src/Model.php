@@ -436,7 +436,7 @@ abstract class Model implements SCRUDInterface
 
 				// inheritance
 				if($parentClass = $classReflection->getParentClass()) {
-						$io->writeRaw(PHP_TAB. '"' .$className. '" -> "' .$parentClass->getName(). '" [arrowhead=onormal];');
+						$io->writeRaw(PHP_TAB. '"' .$className. '" -> "' .$parentClass->getName(). '" [arrowhead=onormal color=grey64];');
 				}
 
 				// associations
