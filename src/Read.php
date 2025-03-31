@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-class Read extends Pull
+class Read extends PullOne
 {
 	public function __construct(string $modelClassName)
 	{

@@ -25,20 +25,29 @@ class Search extends Pull
 	/*
 	 * @throws \TypeError
 	 */
-	public function execute(\PDO $database): ModelCollection
+	public function execute(\PDO $database): ModelCollection|array
 	{
 		$this->init();
 
 		// if(!$this->query->isOrdered())
 			$this->query->order($this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString());
 
-		return new ModelCollection(
-			$this->modelClassName,
-			$this->query,
-			$this->getInstanciator(),
-			$this->query->getLimit(),
-			$this->query->getOffset() ?? 0,
-			$database
-		);
+		if($this->groupedBy) {
+			$array = [];
+			// while (($rs = $query->fetch(\PDO::FETCH_OBJ)) !== false) {
+			// 	$array[$rs->g] = $rs->c;
+			// }
+			throw new \LogicException('Not yet implemented');
+			return $array;
+		} else {
+			return new ModelCollection(
+				$this->modelClassName,
+				$this->query,
+				$this->getInstanciator(),
+				$this->query->getLimit(),
+				$this->query->getOffset() ?? 0,
+				$database
+			);
+		}
 	}
 }

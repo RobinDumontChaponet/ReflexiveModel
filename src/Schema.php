@@ -673,8 +673,11 @@ class Schema implements \JsonSerializable
 												$propertyReflection->getName(),
 												'ENUM('.implode(',', array_map(fn($case) => '\''.$case->name.'\'', $typeName::cases())).')'
 											);
-											if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName()))
-												$schema->setColumnDefaultValue($propertyReflection->getName(), $propertyReflection->getDefaultValue()->name);
+											if($propertyReflection->hasDefaultValue() && !$schema->hasColumnDefaultValue($propertyReflection->getName())) {
+												$schema->setColumnDefaultValue(
+													$propertyReflection->getName(), $propertyReflection->getDefaultValue()?->name
+												);
+											}
 											break;
 										} else {
 											$schema->setColumnType(
@@ -752,7 +755,9 @@ class Schema implements \JsonSerializable
 
 			$schema->setReferenceCardinality($propertyName, $modelAttribute->cardinality);
 
-			$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
+			if(!empty($modelAttribute->nullable)) {
+				$schema->setReferenceNullable($propertyName, $modelAttribute->nullable);
+			}
 
 			// if(null !== $modelAttribute->inverse)
 			// 	$schema->setReferenceInverse($propertyName, $modelAttribute->inverse);
@@ -760,7 +765,7 @@ class Schema implements \JsonSerializable
 			$schema->setReferenceColumnName($propertyName,  match($modelAttribute->cardinality) {
 				Cardinality::OneToOne => $modelAttribute->columnName ?? $propertyName,
 				Cardinality::OneToMany => $modelAttribute->columnName ?? $propertyName,
-				Cardinality::ManyToOne => $modelAttribute->columnName ?? $propertyName,
+				Cardinality::ManyToOne => lcfirst($className) ?? $propertyName,
 				Cardinality::ManyToMany => $modelAttribute->columnName ?? $schema->getUIdColumnNameString() ?? 'id',
 			});
 

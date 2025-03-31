@@ -247,7 +247,7 @@ abstract class Model implements SCRUDInterface
 		return new Create(static::class, $model);
 	}
 
-	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): Pull
+	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): PullOne
 	{
 		$query = new Read(static::class);
 
