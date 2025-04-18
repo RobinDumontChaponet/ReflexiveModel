@@ -13,6 +13,7 @@
 	],
 	"require": {
 		"php": "^8.1.0",
+		"ext-reflection": "*",
 		"composer-runtime-api": "^2.0.0",
 		"composer/composer": "^2",
 		"reflexive/core": "dev-master",
@@ -20,7 +21,7 @@
 		"psr/simple-cache": "^1.0"
 	},
 	"require-dev": {
-		"vimeo/psalm": "^4.24",
+		"vimeo/psalm": "^5.19",
 		"bmitch/churn-php": "^1.7"
 	},
 	"autoload": {
