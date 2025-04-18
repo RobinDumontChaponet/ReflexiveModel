@@ -270,7 +270,7 @@ abstract class ModelStatement
 				default => $value,
 			};
 
-			$this->query->and($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
+			$this->query->where($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
 		} elseif($this->schema->hasReference($propertyName)) {
 			if($comparator == Comparator::IN && (is_array($value) || $value instanceof ModelCollection)) {
 				if($value instanceof ModelCollection) {
