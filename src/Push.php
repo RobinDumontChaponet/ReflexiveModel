@@ -117,9 +117,19 @@ abstract class Push extends ModelStatement
 
 					case Cardinality::OneToMany:
 						$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
-						if(isset($reference['columnName']) && !is_null($value)) {
-							/** @psalm-suppress UndefinedMethod */
-							$this->query->set($reference['columnName'], $value->getModelIdString());
+
+						if(null === $value) {
+							if($this->schema->isReferenceNullable($propertyName)) {
+								/** @psalm-suppress UndefinedMethod */
+								$this->query->set($reference['columnName'], null);
+							} else {
+								throw new \TypeError('Reference column "'.$reference['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property (reference) "'.$propertyName.'" of model "'.$model::class.'"');
+							}
+						} else {
+							if(isset($reference['columnName']) && !is_null($value)) {
+								/** @psalm-suppress UndefinedMethod */
+								$this->query->set($reference['columnName'], $value->getModelIdString());
+							}
 						}
 					break;
 				}
