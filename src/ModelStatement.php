@@ -61,7 +61,7 @@ abstract class ModelStatement
 		if(static::$useInternalCache)
 			static::$models[$model::class][$model->getModelIdString()] = $model;
 
-		static::$cache?->set('model_'.$model::class.'_'.$model->getModelId(), $model, static::$cacheTTL);
+		static::$cache?->set('model_'.$model::class.'_'.$model->getModelIdString(), $model, static::$cacheTTL);
 	}
 
 	// private ?\PDO $database;
