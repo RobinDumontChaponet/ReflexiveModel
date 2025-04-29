@@ -32,5 +32,11 @@
 	"scripts": {
 		"exportSQL": "Reflexive\\Model\\Schema\\ScriptHandler::exportSQL",
 		"exportGraph": "Reflexive\\Model\\Model\\ScriptHandler::exportGraph"
-	}
+	},
+	"repositories": [
+		{
+			"type": "path",
+			"url": "/Users/r-dc/Sites/Reflexive/Query"
+		}
+	]
 }
