@@ -33,11 +33,11 @@ abstract class Pull extends PullOne
 
 		if($this->schema->hasColumn($propertyName)) {
 			$columnName = $this->schema->getColumnName($propertyName);
-			$this->query->order($columnName, $direction, $this->schema->isColumnNullable($columnName));
+			$this->query->order($columnName, $direction, $this->schema->isColumnNullable($columnName) ?? false);
 		} elseif(($superType = $this->schema->getSuperType()) !== null) {
 			if(($superTypeSchema = Schema::getSchema($superType)) && $superTypeSchema->hasColumn($propertyName)) {
 				$columnName = $superTypeSchema->getColumnName($propertyName);
-				$this->query->order($columnName, $direction, $superTypeSchema->isColumnNullable($columnName));
+				$this->query->order($columnName, $direction, $superTypeSchema->isColumnNullable($columnName) ?? false);
 			}
 		} else {
 			throw new \TypeError('Property "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'". Could not order by.');
