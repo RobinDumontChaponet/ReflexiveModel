@@ -31,11 +31,12 @@ class Read extends PullOne
 		// }
 
 		$conditions = $this->query->getConditions();
-		if(count($conditions) == 1)
+		if(count($conditions) == 1) {
 			$id = $conditions[$this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString().'_0']['value'] ?? null;
 
 			if(null !== $id && ($object = static::_getModel($this->modelClassName, $id)) !== null)
 				return $object;
+		}
 
 		$statement = $this->query->prepare($database);
 		if($statement->execute()) {
