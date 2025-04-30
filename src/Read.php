@@ -26,13 +26,15 @@ class Read extends PullOne
 	{
 		$this->init();
 
-		if(isset($this->schema)) {
+		// if(isset($this->schema)) {
 			// $this->query->setColumns($this->schema->getColumnNames());
-		}
+		// }
 
 		$conditions = $this->query->getConditions();
-		if(count($conditions) == 1 && isset($conditions[$this->schema->getUIdColumnNameString()]))
-			if(($object = static::_getModel($this->modelClassName, $conditions[$this->schema->getUIdColumnName()]['value'])) !== null)
+		if(count($conditions) == 1)
+			$id = $conditions[$this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString().'_0']['value'] ?? null;
+
+			if(null !== $id && ($object = static::_getModel($this->modelClassName, $id)) !== null)
 				return $object;
 
 		$statement = $this->query->prepare($database);
