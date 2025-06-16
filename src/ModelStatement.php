@@ -323,6 +323,8 @@ abstract class ModelStatement
 						throw new \LogicException('Case not implemented');
 					break;
 				}
+			} elseif(null === $value && $this->schema->isReferenceNullable($propertyName)) {
+				$this->query->where($this->schema->getTableName().'.'.$this->schema->getReferenceColumnName($propertyName), $comparator, $value);
 			} else {
 				throw new \TypeError('Can only reference "'.$propertyName.'" with object, '.gettype($value).' given.');
 			}
