@@ -263,15 +263,43 @@ abstract class ModelStatement
 		if(empty($this->query->getConditions()))
 			$this->init();
 
+		$targetSchema = null;
 		if($this->schema->hasColumn($propertyName)) {
+			$targetSchema = $this->schema;
+		} elseif($this->schema->isSubType()) {
+			$superSchema = $this->schema->getSuperSchema();
+
+			if($superSchema?->hasColumn($propertyName)) {
+				$targetSchema = $superSchema;
+			}
+		}
+
+		if($targetSchema) {
 			$value = match(gettype($value)) {
 				'boolean' => (int)$value,
 				'object' => $value instanceof DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value->id,
 				default => $value,
 			};
 
-			$this->query->where($this->schema->getTableName().'.'.$this->schema->getColumnName($propertyName), $comparator, $value);
-		} elseif($this->schema->hasReference($propertyName)) {
+			$this->query->where($targetSchema->getTableName().'.'.$targetSchema->getColumnName($propertyName), $comparator, $value);
+
+			return $this;
+		}
+
+		$targetSchema = null;
+		if($this->schema->hasReference($propertyName)) {
+			$targetSchema = $this->schema;
+		} elseif($this->schema->isSubType()) {
+			$superSchema = $this->schema->getSuperSchema();
+
+			if($superSchema?->hasReference($propertyName)) {
+				$targetSchema = $superSchema;
+			}
+		}
+
+		if($targetSchema) {
+			$referenceCardinality = $targetSchema->getReferenceCardinality($propertyName);
+
 			if($comparator == Comparator::IN && (is_array($value) || $value instanceof ModelCollection)) {
 				if($value instanceof ModelCollection) {
 					$value = $value->asArray();
@@ -280,26 +308,26 @@ abstract class ModelStatement
 				$values = array_map(fn($v) => $v->getModelIdString(), $value);
 
 				if(!empty($values)) {
-					switch($this->schema->getReferenceCardinality($propertyName)) {
+					switch($referenceCardinality) {
 						case Cardinality::OneToMany:
 							$this->query->and(
-								$this->schema->getTableName().'.'.$this->schema->getReferenceColumnName($propertyName),
+								$targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName),
 								$comparator,
 								$values
 							);
 						break;
 						default:
-							throw new \LogicException('Case not implemented');
+							throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
 						break;
 					}
 				} else {
 					throw new \LogicException('Mhm. What should I do ?');
 				}
 			} elseif(is_object($value)) {
-				switch($this->schema->getReferenceCardinality($propertyName)) {
+				switch($referenceCardinality) {
 					case Cardinality::OneToMany:
 						$this->query->and(
-							$this->schema->getTableName().'.'.$this->schema->getReferenceColumnName($propertyName),
+							$targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName),
 							$comparator,
 							$value->getModelId(),
 						);
@@ -307,32 +335,34 @@ abstract class ModelStatement
 					case Cardinality::ManyToMany:
 						$this->query->join(
 							Query\Join::inner,
-							$this->schema->getReferenceForeignTableName($propertyName),
-							$this->schema->getReferenceForeignColumnName($propertyName),
+							$targetSchema->getReferenceForeignTableName($propertyName),
+							$targetSchema->getReferenceForeignColumnName($propertyName),
 							Comparator::EQUAL,
-							$this->schema->getTableName(),
-							$this->schema->getUidColumnNameString(),
+							$targetSchema->getTableName(),
+							$targetSchema->getUidColumnNameString(),
 						);
 						$this->query->and(
-							$this->schema->getReferenceForeignTableName($propertyName).'.'.$this->schema->getReferenceForeignRightColumnName($propertyName),
+							$targetSchema->getReferenceForeignTableName($propertyName).'.'.$targetSchema->getReferenceForeignRightColumnName($propertyName),
 							$comparator,
 							$value->getModelId(),
 						);
 					break;
 					default:
-						throw new \LogicException('Case not implemented');
+						throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
 					break;
 				}
-			} elseif(null === $value && $this->schema->isReferenceNullable($propertyName)) {
-				$this->query->where($this->schema->getTableName().'.'.$this->schema->getReferenceColumnName($propertyName), $comparator, $value);
+			} elseif(null === $value && $targetSchema->isReferenceNullable($propertyName)) {
+				$this->query->where($targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName), $comparator, $value);
 			} else {
 				throw new \TypeError('Can only reference "'.$propertyName.'" with object, '.gettype($value).' given.');
 			}
-		} else {
-			throw new \TypeError('Property (or Reference) "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+
+			return $this;
 		}
 
-		return $this;
+		throw new \TypeError('Property (or Reference) "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'"');
+
+		// return $this;
 	}
 
 	public function and(...$where): static

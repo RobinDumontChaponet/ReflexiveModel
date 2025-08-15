@@ -22,6 +22,8 @@ abstract class Model implements SCRUDInterface
 	protected static array $attributedProperties = [];
 	// public bool $autoInitializeProperties = true;
 
+	protected static ?string $superType = null;
+
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
 	public bool $updateUnmodified = false;
@@ -55,6 +57,12 @@ abstract class Model implements SCRUDInterface
 	{
 		if(!isset(self::$attributedProperties[static::class])) {
 			$classReflection = new ReflectionClass(static::class);
+
+			$parentClassName = get_parent_class(static::class);
+			if($parentClassName !== 'Reflexive\Model\Model') {
+				self::$superType = $parentClassName;
+				$parentClassName::initModelAttributes();
+			}
 
 			self::$attributedProperties[static::class] = [];
 			// get attributes of properties
@@ -140,7 +148,7 @@ abstract class Model implements SCRUDInterface
 
 	private function &getValue(string $name): mixed
 	{
-		if(isset(static::$attributedProperties[static::class][$name])) {
+		if(isset(static::$attributedProperties[static::class][$name]) || isset(static::$attributedProperties[static::$superType][$name])) {
 			if(property_exists($this, $name) && !isset($this->{$name})) {
 				$propertyReflection = new ReflectionProperty(static::class, $name);
 				$type = $propertyReflection->getType();
@@ -159,22 +167,31 @@ abstract class Model implements SCRUDInterface
 		return null;
 	}
 
-	private function setValue(string $name, mixed $value): void
+	private function _setValue(string $className, string $name, mixed $value): void
 	{
-		if(isset(static::$attributedProperties[static::class][$name])) {
-			if(static::$attributedProperties[static::class][$name]) {
+		if(isset(static::$attributedProperties[$className][$name])) {
+			if(static::$attributedProperties[$className][$name]) {
 				if(($this->{$name} ?? null) !== $value)
 					$this->modifiedProperties[] = $name;
 
 				$this->{$name} = $value;
 			} else {
 				set_error_handler(self::errorHandler());
-				trigger_error(static::class.'::$'.$name.' is readonly', E_USER_ERROR);
+				trigger_error($className.'::$'.$name.' is readonly', E_USER_ERROR);
 			}
 		} else {
 			set_error_handler(self::errorHandler());
-			trigger_error('Access (set) to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
+			trigger_error('Access (set) to undefined property '.$className.'::$'.$name, E_USER_ERROR);
 		}
+	}
+	private function setValue(string $name, mixed $value): void
+	{
+		$className = static::class;
+		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$attributedProperties[static::$superType][$name])) {
+			$className = static::$superType;
+		}
+
+		$this->_setValue($className, $name, $value);
 	}
 
 	function &__get(string $name): mixed

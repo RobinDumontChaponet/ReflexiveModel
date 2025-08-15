@@ -38,18 +38,29 @@ abstract class PullOne extends ModelStatement
 			throw new \TypeError('Schema "'.$reference::class.'" not set');
 		}
 
+		$targetSchema = null;
 		if($referencedSchema->hasReference($propertyName)) {
-			if($referencedSchema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
+			$targetSchema = $referencedSchema;
+		} elseif($referencedSchema->isSubType()) {
+			$superReferencedSchema = Schema::getSchema($referencedSchema->getSuperType());
+
+			if($superReferencedSchema->hasReference($propertyName)) {
+				$targetSchema = $superReferencedSchema;
+			}
+		}
+
+		if($targetSchema) {
+			if($targetSchema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
 				$this->query->join(
 					Query\Join::inner,
-					$referencedSchema->getReferenceForeignTableName($propertyName),
-					$referencedSchema->getReferenceForeignRightColumnName($propertyName),
+					$targetSchema->getReferenceForeignTableName($propertyName),
+					$targetSchema->getReferenceForeignRightColumnName($propertyName),
 					Comparator::EQUAL,
 					$this->schema->getTableName(),
 					$this->schema->getUidColumnNameString(),
 				);
 				$this->query->and(
-					$referencedSchema->getReferenceForeignTableName($propertyName).'.'.$referencedSchema->getReferenceForeignColumnName($propertyName),
+					$targetSchema->getReferenceForeignTableName($propertyName).'.'.$targetSchema->getReferenceForeignColumnName($propertyName),
 					$comparator,
 					$reference->getModelId(),
 				);

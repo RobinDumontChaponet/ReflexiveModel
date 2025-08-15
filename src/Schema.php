@@ -68,6 +68,11 @@ class Schema implements \JsonSerializable
 		return static::_getSchema($className) ?? self::initFromAttributes($className) ?? null;
 	}
 
+	public function getSuperSchema(): ?self
+	{
+		return !empty($this->superType) ? self::getSchema($this->superType) : null;
+	}
+
 	protected static function _setSchema(string $className, self $schema): void
 	{
 		if(static::$useInternalCache)
@@ -553,6 +558,11 @@ class Schema implements \JsonSerializable
 		return $this->superType === $className;
 	}
 
+	public function isSubType(): bool
+	{
+		return !empty($this->superType);
+	}
+
 	public function getSuperType(): ?string
 	{
 		return $this->superType;
@@ -572,6 +582,7 @@ class Schema implements \JsonSerializable
 			'uIdPropertyName' => $this->uIdPropertyName,
 			'columns' => $this->columns,
 			'references' => $this->references,
+			'superType' => $this->superType,
 		];
 		// $array['references']??= $this->references;
 	}
@@ -1397,7 +1408,9 @@ class Schema implements \JsonSerializable
 		$count = 0;
 		foreach($classNames as $className) {
 			$classReflection = new ReflectionClass($className);
-			if($classReflection->isAbstract())
+
+			$schema = self::getSchema($className);
+			if($classReflection->isAbstract() && !$schema?->isSuperType())
 				continue;
 
 			foreach(self::initFromAttributes($className)?->dumpReferencesSQL() ?? [] as $dump) {
