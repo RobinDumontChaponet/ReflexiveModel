@@ -322,6 +322,13 @@ abstract class Model implements SCRUDInterface
 		$count = 0;
 
 		$io->writeRaw('digraph {');
+
+		$io->writeRaw(PHP_TAB. 'layout = neato;');
+		$io->writeRaw(PHP_TAB. 'overlap = false;');
+		$io->writeRaw(PHP_TAB. 'pack = true;');
+		$io->writeRaw(PHP_TAB. 'splines = curved;');
+		$io->writeRaw(PHP_TAB. 'concentrate = true;');
+
 		$io->writeRaw(PHP_TAB. 'edge [color=red, arrowsize=2];');
 		$io->writeRaw(PHP_TAB. 'node [shape=plaintext, color=white];'. PHP_EOL);
 
@@ -369,11 +376,21 @@ abstract class Model implements SCRUDInterface
 							$typeString = implode(' | ', array_map(fn(ReflectionNamedType $v): string => $v->getName(), $type->getTypes()));
 						} elseif($type instanceof ReflectionNamedType) {
 							$typeString = $type->getName();
+							if($type->allowsNull())
+								$typeString.= '?';
 						} else {
 							$typeString = 'undefined';
 						}
 
-						$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$propertyName.'">' .$propertyName.' <font color="grey64">: '. $typeString .'</font></td></tr>';
+						$card = $type?->allowsNull() ? '0' : '1';
+						if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
+							$card.= '..n';
+						elseif($card != 1)
+							$card.= '..1';
+						// else
+						// 	$card = '';
+
+						$label.= '<tr><td align="right">'.$visibility.'</td><td align="left" port="'.$propertyName.'">' .$propertyName.' <font color="grey64">: '. $typeString . ' (' . $card .')</font></td></tr>';
 					}
 
 					$label.= '<hr />';
@@ -460,10 +477,7 @@ abstract class Model implements SCRUDInterface
 				foreach($schema->getReferences() as $propertyName => $reference) {
 					$io->writeRaw(PHP_TAB. '"' .$className.'":'.$propertyName. ' -> "'.$reference['type'].'"', false);
 
-					// if(in_array($reference['cardinality'], [Cardinality::OneToMany, Cardinality::ManyToMany]))
-						$io->writeRaw(' [arrowhead=odiamond]', false);
-
-					$io->writeRaw(';');
+					$io->writeRaw(' [arrowhead=odiamond];');
 				}
 			}
 
