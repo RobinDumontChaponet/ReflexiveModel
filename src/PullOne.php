@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
+use Reflexive\Core\Condition;
 use Reflexive\Query;
 
 abstract class PullOne extends ModelStatement
@@ -59,11 +60,11 @@ abstract class PullOne extends ModelStatement
 					$this->schema->getTableName(),
 					$this->schema->getUidColumnNameString(),
 				);
-				$this->query->and(
+				$this->query->and(new Condition(
 					$targetSchema->getReferenceForeignTableName($propertyName).'.'.$targetSchema->getReferenceForeignColumnName($propertyName),
 					$comparator,
 					$reference->getModelId(),
-				);
+				));
 			}
 		} else {
 			throw new \TypeError('Reference "'.$propertyName.'" not found in Schema "'.$this->schema->getTableName().'" / referencedSchema "'.$referencedSchema->getTableName().'"');

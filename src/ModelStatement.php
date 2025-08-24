@@ -7,6 +7,7 @@ namespace Reflexive\Model;
 use Closure;
 use DateTimeInterface;
 use Reflexive\Core\Comparator;
+use Reflexive\Core\Condition;
 use Reflexive\Query;
 use ReflectionClass;
 use ReflectionUnionType;
@@ -260,7 +261,7 @@ abstract class ModelStatement
 
 	public function where(string $propertyName, Comparator $comparator, string|int|float|array|bool|Model|ModelCollection|DateTimeInterface|null $value = null): static
 	{
-		if(empty($this->query->getConditions()))
+		if($this->schema == null)
 			$this->init();
 
 		$targetSchema = null;
@@ -281,7 +282,7 @@ abstract class ModelStatement
 				default => $value,
 			};
 
-			$this->query->where($targetSchema->getTableName().'.'.$targetSchema->getColumnName($propertyName), $comparator, $value);
+			$this->query->where(new Condition($targetSchema->getTableName().'.'.$targetSchema->getColumnName($propertyName), $comparator, $value));
 
 			return $this;
 		}
@@ -310,11 +311,11 @@ abstract class ModelStatement
 				if(!empty($values)) {
 					switch($referenceCardinality) {
 						case Cardinality::OneToMany:
-							$this->query->and(
+							$this->query->and(new Condition(
 								$targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName),
 								$comparator,
 								$values
-							);
+							));
 						break;
 						default:
 							throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
@@ -326,11 +327,11 @@ abstract class ModelStatement
 			} elseif(is_object($value)) {
 				switch($referenceCardinality) {
 					case Cardinality::OneToMany:
-						$this->query->and(
+						$this->query->and(new Condition(
 							$targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName),
 							$comparator,
 							$value->getModelId(),
-						);
+						));
 					break;
 					case Cardinality::ManyToMany:
 						$this->query->join(
@@ -341,18 +342,18 @@ abstract class ModelStatement
 							$targetSchema->getTableName(),
 							$targetSchema->getUidColumnNameString(),
 						);
-						$this->query->and(
+						$this->query->and(new Condition(
 							$targetSchema->getReferenceForeignTableName($propertyName).'.'.$targetSchema->getReferenceForeignRightColumnName($propertyName),
 							$comparator,
-							$value->getModelId(),
-						);
+							$value->getModelId()
+						));
 					break;
 					default:
 						throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
 					break;
 				}
 			} elseif(null === $value && $targetSchema->isReferenceNullable($propertyName)) {
-				$this->query->where($targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName), $comparator, $value);
+				$this->query->where(new Condition($targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($propertyName), $comparator, $value));
 			} else {
 				throw new \TypeError('Can only reference "'.$propertyName.'" with object, '.gettype($value).' given.');
 			}
@@ -409,8 +410,8 @@ abstract class ModelStatement
 
 	 public function getInstanciator(): ?Closure
 	 {
-		 $this->init();
+		$this->init();
 
-		 return static::$instanciators[$this->modelClassName] ?? null;
+		return static::$instanciators[$this->modelClassName] ?? null;
 	 }
 }

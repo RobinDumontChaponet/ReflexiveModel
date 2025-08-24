@@ -30,9 +30,9 @@ class Read extends PullOne
 			// $this->query->setColumns($this->schema->getColumnNames());
 		// }
 
-		$conditions = $this->query->getConditions();
-		if(count($conditions) == 1) {
-			$id = $conditions[$this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString().'_0']['value'] ?? null;
+		if($this->query->conditionCount() == 1) {
+			$conditions = $this->query->getConditionGroup()->getConditions();
+			$id = $conditions[$this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString().'_0']?->value ?? null;
 
 			if(null !== $id && ($object = static::_getModel($this->modelClassName, $id)) !== null)
 				return $object;
