@@ -11,7 +11,6 @@ use ReflectionIntersectionType;
 
 use Reflexive\Query;
 use Reflexive\Core\Comparator;
-use Reflexive\Core\Condition;
 
 /**
  * @property Query\Push query
@@ -163,12 +162,12 @@ abstract class Push extends ModelStatement
 						}
 						foreach($value->getRemovedKeys() as $removedKey) {
 							$referencedQuery = new Query\Delete();
-							$referencedQuery->where(new Condition(
+							$referencedQuery->where(new Query\Condition(
 									$reference['foreignColumnName'],
 									Comparator::EQUAL,
 									$this->model->getModelIdString()
 								))
-								->and(new Condition(
+								->and(new Query\Condition(
 									$reference['foreignRightColumnName'],
 									Comparator::EQUAL,
 									$removedKey

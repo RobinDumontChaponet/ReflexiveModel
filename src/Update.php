@@ -6,7 +6,6 @@ namespace Reflexive\Model;
 
 use Reflexive\Query;
 use Reflexive\Core\Comparator;
-use Reflexive\Core\Condition;
 
 class Update extends Push
 {
@@ -25,7 +24,7 @@ class Update extends Push
 				if(is_object($value) && enum_exists($value::class))
 					$value = $value->name;
 
-				$this->query->where(new Condition(
+				$this->query->where(new Query\Condition(
 					$uids[0],
 					Comparator::EQUAL,
 					$value
@@ -36,7 +35,7 @@ class Update extends Push
 					if(is_object($value) && enum_exists($value::class))
 						$value = $value->name;
 
-					$this->query->and(new Condition(
+					$this->query->and(new Query\Condition(
 						$uids[$i],
 						Comparator::EQUAL,
 						$value
@@ -47,7 +46,7 @@ class Update extends Push
 				if(is_array($id))
 					$id = array_values($id)[0];
 
-				$this->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $id);
+				$this->where(Condition::EQUAL($this->schema->getUIdColumnNameString(), $id));
 			}
 
 			// $this->query->where($this->schema->getUIdColumnNameString(), Comparator::EQUAL, $this->model->getModelId());

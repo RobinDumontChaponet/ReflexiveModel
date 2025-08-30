@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
-use Reflexive\Core\Condition;
+use Reflexive\Query\Condition;
 use Reflexive\Query;
 
 abstract class PullOne extends ModelStatement

@@ -27,7 +27,9 @@ trait ModelEnum
 		$query = new Search(static::class);
 
 		if(isset($name))
-			$query->where($name, $comparator, $value);
+			$query->where(new Condition(
+				$name, $comparator, $value
+			));
 
 		return $query;
 	}
@@ -42,7 +44,9 @@ trait ModelEnum
 		$query = new Read(static::class);
 
 		if(isset($name))
-			$query->where($name, $comparator, $value);
+			$query->where(new Condition(
+				$name, $comparator, $value
+			));
 
 		return $query;
 	}

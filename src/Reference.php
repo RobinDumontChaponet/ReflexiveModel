@@ -18,6 +18,7 @@ class Reference
 		public readonly ?string $foreignTableName = null,
 		public readonly ?string $foreignRightTableName = null,
 		public readonly ?string $foreignRightColumnName = null,
+		public readonly ?bool $isLazy = null,
 		// public readonly bool $inverse = false,
 	)
 	{}

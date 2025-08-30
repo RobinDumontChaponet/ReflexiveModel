@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Reflexive\Core\Comparator;
 use Reflexive\Query;
 
 class Delete extends ModelStatement
@@ -16,7 +15,10 @@ class Delete extends ModelStatement
 	{
 		parent::__construct($modelClassName);
 		$this->query = new Query\Delete();
-		$this->where('id', Comparator::EQUAL, $model->getModelId());
+		$this->where(Condition::EQUAL(
+			'id',
+			$model->getModelId()
+		));
 	}
 
 	/*

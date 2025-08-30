@@ -22,7 +22,7 @@ class Read extends PullOne
 		}
 	}
 
-	public function execute(\PDO $database): ?Model
+	public function execute(\PDO $database, ?bool $lazy = false): ?Model
 	{
 		$this->init();
 
@@ -43,7 +43,7 @@ class Read extends PullOne
 			if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
 				return $this->getInstanciator()(
 					$rs,
-					$database
+					$database,
 				)[1];
 			}
 		}
