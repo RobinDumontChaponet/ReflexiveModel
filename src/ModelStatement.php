@@ -204,7 +204,7 @@ abstract class ModelStatement
 													$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
 													$rs->{$reference['columnName']}
 												)
-											)->execute($database, lazy: $reference['isLazy'] ?? null)
+											)->execute($database)
 										);
 									break;
 									case Cardinality::OneToMany:
@@ -218,7 +218,7 @@ abstract class ModelStatement
 														$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
 														$rs->{$reference['columnName']}
 													)
-												)->execute($database, lazy: $reference['isLazy'] ?? null)
+												)->execute($database)
 											);
 									break;
 									case Cardinality::ManyToOne:

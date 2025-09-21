@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// unused for now…
+
 namespace Reflexive\Model;
 
 use Attribute;

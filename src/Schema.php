@@ -400,20 +400,20 @@ class Schema implements \JsonSerializable
 			$this->references[$key] = ['nullable' => $nullable];
 	}
 
-	public function isReferenceLazy(int|string $key): ?bool
-	{
-		if($this->hasReference($key))
-			return $this->references[$key]['lazy'] ?? null;
-
-		return null;
-	}
-	public function setReferenceLazy(int|string $key, bool $lazy = true): void
-	{
-		if($this->hasReference($key))
-			$this->references[$key]['lazy'] = $lazy;
-		else
-			$this->references[$key] = ['lazy' => $lazy];
-	}
+	// public function isReferenceLazy(int|string $key): ?bool
+	// {
+	// 	if($this->hasReference($key))
+	// 		return $this->references[$key]['lazy'] ?? null;
+//
+	// 	return null;
+	// }
+	// public function setReferenceLazy(int|string $key, bool $lazy = true): void
+	// {
+	// 	if($this->hasReference($key))
+	// 		$this->references[$key]['lazy'] = $lazy;
+	// 	else
+	// 		$this->references[$key] = ['lazy' => $lazy];
+	// }
 
 
 // 	public function isReferenceInverse(int|string $key): ?bool

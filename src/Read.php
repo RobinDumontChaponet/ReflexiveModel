@@ -22,7 +22,7 @@ class Read extends PullOne
 		}
 	}
 
-	public function execute(\PDO $database, ?bool $lazy = false): ?Model
+	public function execute(\PDO $database): ?Model
 	{
 		$this->init();
 
