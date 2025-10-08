@@ -117,86 +117,100 @@ abstract class ModelStatement
 					// $object = $classReflection->newInstanceWithoutConstructor();
 
 					// may need a rewrite for lazyGhost : lazyGhost may/should contain and delay database query
-					$object = $classReflection->newLazyGhost(function (Model $object) use ($schema, $rs, $database, $classReflection): void {
-						$columns = $schema->getColumns();
-						$superType = $this->schema->getSuperType();
-						if($superType !== null) { // is subType of $superType
-							$superTypeSchema = Schema::getSchema($superType);
-							$columns+= $superTypeSchema->getColumns();
-						}
+					$object = $classReflection->newInstanceWithoutConstructor();
+					$columns = $schema->getColumns();
+					$superType = $this->schema->getSuperType();
+					if($superType !== null) { // is subType of $superType
+						$superTypeSchema = Schema::getSchema($superType);
+						$columns+= $superTypeSchema->getColumns();
+					}
 
-						foreach($columns as $propertyName => $column) {
-							if(isset($column['columnName'])) {
-								$propertyReflection = $classReflection->getProperty($propertyName);
-								$propertyReflection->setAccessible(true);
+					foreach($columns as $propertyName => $column) {
+						if(isset($column['columnName'])) {
+							$propertyReflection = $classReflection->getProperty($propertyName);
+							$propertyReflection->setAccessible(true);
 
-								if($type = $propertyReflection->getType()) {
-									if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
-										foreach($types as $type) {
-											if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
-												if($type->allowsNull()) { // is nullable
-													$propertyReflection->setValue($object, null);
-													break;
-												} else {
-													throw new \TypeError('Property "'.$propertyName.'" of model "'.$modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
-												}
+							if($type = $propertyReflection->getType()) {
+								if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
+									foreach($types as $type) {
+										if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
+											if($type->allowsNull()) { // is nullable
+												$propertyReflection->setValue($object, null);
+												break;
 											} else {
-												$value = $rs->{$column['columnName']};
+												throw new \TypeError('Property "'.$propertyName.'" of model "'.$modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
+											}
+										} else {
+											$value = $rs->{$column['columnName']};
 
-												if($type->isBuiltin()) { // PHP builtin types
-													$propertyReflection->setValue($object, $value);
+											if($type->isBuiltin()) { // PHP builtin types
+												$propertyReflection->setValue($object, $value);
+												break;
+											} else {
+												/** @psalm-var class-string $typeName */
+												$typeName = $type->getName();
+
+												if(enum_exists($typeName)) { // PHP enum
+													$propertyReflection->setValue(
+														$object,
+														constant($typeName.'::'.$value)
+														// $typeName::tryFrom($value)
+													);
 													break;
-												} else {
-													/** @psalm-var class-string $typeName */
-													$typeName = $type->getName();
-
-													if(enum_exists($typeName)) { // PHP enum
-														$propertyReflection->setValue(
-															$object,
-															constant($typeName.'::'.$value)
-															// $typeName::tryFrom($value)
-														);
-														break;
-													} elseif(class_exists($typeName, true)) { // object
-														$propertyReflection->setValue(
-															$object,
-															match($typeName) {
-																\DateTime::class => new \DateTime($value),
-																'stdClass' => json_decode($value),
-																default => new $typeName($value)
-															}
-														);
-														break;
-													}
+												} elseif(class_exists($typeName, true)) { // object
+													$propertyReflection->setValue(
+														$object,
+														match($typeName) {
+															\DateTime::class => new \DateTime($value),
+															'stdClass' => json_decode($value),
+															default => new $typeName($value)
+														}
+													);
+													break;
 												}
 											}
 										}
-									} else {
-										$propertyReflection->setValue($object, $rs->{$column['columnName']});
 									}
+								} else {
+									$propertyReflection->setValue($object, $rs->{$column['columnName']});
 								}
 							}
 						}
+					}
 
-						$references = $schema->getReferences();
-						if(isset($superType)) // is subType of $superType
-							$references+= $superTypeSchema->getReferences();
+					$references = $schema->getReferences();
+					if(isset($superType)) // is subType of $superType
+						$references+= $superTypeSchema->getReferences();
 
-						// if(isset($subTypeSchema)) // is superType
-						// 	$references+= array_diff_key($subTypeSchema->getReferences(), array_flip($schema->getUIdPropertyName()));
+					// if(isset($subTypeSchema)) // is superType
+					// 	$references+= array_diff_key($subTypeSchema->getReferences(), array_flip($schema->getUIdPropertyName()));
 
-						if(!empty($references) && empty($database))
-							throw new \InvalidArgumentException('No database to use for subsequent queries.');
+					if(!empty($references) && empty($database))
+						throw new \InvalidArgumentException('No database to use for subsequent queries.');
 
-						foreach($references as $propertyName => $reference) {
-							if($referencedSchema = Schema::getSchema($reference['type'])) {
-								if(isset($superType) && $superType == $reference['type'])
-									continue;
+					foreach($references as $propertyName => $reference) {
+						if($referencedSchema = Schema::getSchema($reference['type'])) {
+							if(isset($superType) && $superType == $reference['type'])
+								continue;
 
-								$propertyReflection = $classReflection->getProperty($propertyName);
+							$propertyReflection = $classReflection->getProperty($propertyName);
 
-								switch($reference['cardinality']) {
-									case Cardinality::OneToOne:
+							switch($reference['cardinality']) {
+								case Cardinality::OneToOne:
+									$propertyReflection->setValue(
+										$object,
+										$reference['type']::read()
+											->where(Condition::EQUAL(
+												$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
+												$rs->{$reference['columnName']}
+											)
+										)->execute($database)
+									);
+								break;
+								case Cardinality::OneToMany:
+									if($referencedSchema->isEnum())
+										$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
+									else
 										$propertyReflection->setValue(
 											$object,
 											$reference['type']::read()
@@ -206,52 +220,34 @@ abstract class ModelStatement
 												)
 											)->execute($database)
 										);
-									break;
-									case Cardinality::OneToMany:
-										if($referencedSchema->isEnum())
-											$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
-										else
-											$propertyReflection->setValue(
-												$object,
-												$reference['type']::read()
-													->where(Condition::EQUAL(
-														$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
-														$rs->{$reference['columnName']}
-													)
-												)->execute($database)
-											);
-									break;
-									case Cardinality::ManyToOne:
-										// $propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
-										// if(isset($reference['inverse'])) {
-											$propertyReflection->setValue(
-												$object,
-												$reference['type']::search()
-													->where(Condition::EQUAL(
-														$reference['columnName'],
-														$object
-													)
-												)->execute($database)
-											);
-										// }
-									break;
-									case Cardinality::ManyToMany:
+								break;
+								case Cardinality::ManyToOne:
+									// $propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+									// if(isset($reference['inverse'])) {
 										$propertyReflection->setValue(
 											$object,
 											$reference['type']::search()
-												->with($propertyName, Comparator::EQUAL, $object)
-												->execute($database)
+												->where(Condition::EQUAL(
+													$reference['columnName'],
+													$object
+												)
+											)->execute($database)
 										);
-									break;
-								}
+									// }
+								break;
+								case Cardinality::ManyToMany:
+									$propertyReflection->setValue(
+										$object,
+										$reference['type']::search()
+											->with($propertyName, Comparator::EQUAL, $object)
+											->execute($database)
+									);
+								break;
 							}
 						}
-						static::_setModel($object);
-						self::$instanciationCount++;
-					});
-
-					$classReflection->getProperty('id')->setRawValueWithoutLazyInitialization($object, $id);
-
+					}
+					static::_setModel($object);
+					self::$instanciationCount++;
 
 					return [$id, $object];
 
