@@ -216,9 +216,18 @@ class Schema implements \JsonSerializable
 		if(is_array($id)) {
 			$str = '';
 			foreach($id as $value) {
-				if(is_object($value) && enum_exists($value::class))
-					$str.= $value->name;
-				else
+				if(is_object($value)) {
+					if(enum_exists($value::class))
+						$str.= $value->name;
+					else {
+						$str.= match($value::class) {
+							'stdClass' => json_encode($value),
+							'DateTime' => $value->format('Y-m-d H:i:s'),
+							'Reflexive\Model\Model' => $value->getModelId(),
+							default => $value->__toString(),
+						};
+					}
+				} else
 					$str.= $value;
 				$str.= ', ';
 			}
