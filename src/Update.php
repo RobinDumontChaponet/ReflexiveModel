@@ -38,7 +38,15 @@ class Update extends Push
 					$this->query->and(new Query\Condition(
 						$uids[$i],
 						Comparator::EQUAL,
-						$value
+						match(gettype($value)) {
+							'object' => match($value::class) {
+								'stdClass' => json_encode($value),
+								'DateTime' => $value->format('Y-m-d H:i:s'),
+								'Reflexive\Model\Model' => $value->getModelId(),
+								default => $value->__toString(),
+							},
+							default => $value
+						}
 					));
 				}
 			} else {
