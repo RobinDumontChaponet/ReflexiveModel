@@ -157,7 +157,20 @@ abstract class Push extends ModelStatement
 							$this->referencedQueries[] = $referencedQuery;
 						}
 						foreach($value->getModifiedKeys() as $modifiedKey) {
-							$referencedQuery = $reference['type']::update($value[$modifiedKey]);
+							// $referencedQuery = $reference['type']::update($value[$modifiedKey]);
+							$referencedQuery = new Query\Update();
+							$referencedQuery->where(new Query\Condition(
+									$reference['foreignColumnName'],
+									Comparator::EQUAL,
+									$this->model->getModelIdString()
+								))
+								->and(new Query\Condition(
+									$reference['foreignRightColumnName'],
+									Comparator::EQUAL,
+									$modifiedKey
+								))
+								->from($reference['foreignTableName']);
+
 							$this->referencedQueries[] = $referencedQuery;
 						}
 						foreach($value->getRemovedKeys() as $removedKey) {
