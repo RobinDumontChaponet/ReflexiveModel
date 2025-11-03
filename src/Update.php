@@ -81,9 +81,11 @@ class Update extends Push
 		$execute = (!$this->model->updateUnmodified && empty($this->query->getSets())) ? null : parent::execute($database);
 
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
-			if($referencedQuery instanceof Query\Composed)
+			if(($referencedQuery instanceof Query\Update || $referencedQuery instanceof Query\Insert) && !empty($referencedQuery->willSet()))
 				$execute = $referencedQuery->prepare($database)->execute();
-			elseif($referencedQuery instanceof ModelStatement) {
+			elseif($referencedQuery instanceof Query\Delete)
+				$execute = $referencedQuery->prepare($database)->execute();
+			elseif($referencedQuery instanceof ModelStatement && !empty($referencedQuery->getSets())) {
 				if($this->model->updateReferences)
 					$execute = $referencedQuery->execute($database);
 			}
@@ -93,5 +95,25 @@ class Update extends Push
 			$this->model->resetModifiedPropertiesNames();
 
 		return $execute ?? false;
+	}
+
+	public function __toString(): string
+	{
+		$str = '';
+
+		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			$str = $superType::update($this->model);
+
+			foreach($superTypeSchema->getUIdColumnName() as $uid){
+				if($superTypeSchema->isColumnAutoIncremented($uid)) {
+					/** @psalm-suppress UndefinedMethod */
+					$this->query->set($uid, $this->model->$uid);
+				}
+			}
+		}
+
+		$this->constructOuterReferences();
+
+		return parent::__toString() .'; '.$str;
 	}
 }
