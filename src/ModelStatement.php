@@ -586,10 +586,10 @@ abstract class ModelStatement
 		return $this->query;
 	}
 
-	 public function getInstanciator(): ?Closure
-	 {
+	public function getInstanciator(): ?Closure
+	{
 		$this->init();
 
 		return static::$instanciators[$this->modelClassName] ?? null;
-	 }
+	}
 }
