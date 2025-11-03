@@ -255,7 +255,18 @@ class Schema implements \JsonSerializable
 			return true;
 		} else
 			return $this->hasColumn($this->uIdPropertyName);
-
+	}
+	public function hasUIdProperty(?string $name = null): bool
+	{
+		if(isset($name)) {
+			if(is_array($this->uIdPropertyName)) {
+				return in_array($name, $this->uIdPropertyName);
+			} else {
+				return $name == $this->uIdPropertyName;
+			}
+		} else {
+			return $this->hasUId();
+		}
 	}
 
 	public function getUIdColumnType(): string|array|null
