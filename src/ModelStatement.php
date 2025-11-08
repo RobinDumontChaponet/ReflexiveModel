@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Reflexive\Model;
 
 use Closure;
-use DateTimeInterface;
 use Reflexive\Core\Comparator;
-use Reflexive\Core;
 use Reflexive\Query;
 use ReflectionClass;
 use ReflectionUnionType;
@@ -72,6 +70,25 @@ abstract class ModelStatement
 	)
 	{}
 
+	private static function makeGhost(string $class, Closure $closure): object {
+		return (new ReflectionClass($class))->newLazyGhost(
+			static function (object $ghost) use ($closure): void {
+				$instance = $closure();
+				$classReflection = new ReflectionClass($ghost);
+				// copy state into the ghost
+				while($classReflection) {
+					foreach($classReflection->getProperties() as $property) {
+						$property->setAccessible(true);
+						$property->setValue($ghost, $property->getValue($instance));
+					}
+					$classReflection = $classReflection->getParentClass();
+				}
+
+				// (new ReflectionClass($ghost->class ?? get_class($ghost)))->markLazyObjectAsInitialized($ghost);
+			}
+		);
+	}
+
 	protected function init(): void
 	{
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
@@ -84,8 +101,6 @@ abstract class ModelStatement
 
 			// "instanciator" instantiate object without calling its constructor when needed by Collection or single pull
 			static::$instanciators[$this->modelClassName] = function(object $rs, ?\PDO $database) use (&$classReflection, $schema): array {
-				// if(($object = static::_getModel($this->modelClassName, $rs->id)) !== null)
-
 				$modelClassName = $this->modelClassName;
 
 				$uids = $schema->getUIdColumnName();
@@ -114,9 +129,7 @@ abstract class ModelStatement
 
 				if(is_a($modelClassName, Model::class, true)) { // is model
 					$modelClassName::initModelAttributes();
-					// $object = $classReflection->newInstanceWithoutConstructor();
 
-					// may need a rewrite for lazyGhost : lazyGhost may/should contain and delay database query
 					$object = $classReflection->newInstanceWithoutConstructor();
 					$columns = $schema->getColumns();
 					$superType = $this->schema->getSuperType();
@@ -199,27 +212,40 @@ abstract class ModelStatement
 								case Cardinality::OneToOne:
 									$propertyReflection->setValue(
 										$object,
-										$reference['type']::read()
-											->where(Condition::EQUAL(
-												$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
-												$rs->{$reference['columnName']}
-											)
-										)->execute($database)
+										self::makeGhost($reference['type'], function () use ($referencedSchema, $reference, $rs, $database) {
+											return $reference['type']::read()
+												->where(Condition::EQUAL(
+													$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
+													$rs->{$reference['columnName']}
+												)
+											)->execute($database);
+										})
 									);
 								break;
 								case Cardinality::OneToMany:
 									if($referencedSchema->isEnum())
 										$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
-									else
-										$propertyReflection->setValue(
-											$object,
-											$reference['type']::read()
+									else {
+										$closure = function () use ($referencedSchema, $reference, $rs, $database) {
+											return $reference['type']::read()
 												->where(Condition::EQUAL(
 													$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
 													$rs->{$reference['columnName']}
 												)
-											)->execute($database)
-										);
+											)->execute($database);
+										};
+										if(!$referencedSchema->isSuperType()) {
+											$propertyReflection->setValue(
+												$object,
+												self::makeGhost($reference['type'], $closure)
+											);
+										} else {
+											$propertyReflection->setValue(
+												$object,
+												$closure()
+											);
+										}
+									}
 								break;
 								case Cardinality::ManyToOne:
 									// $propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
