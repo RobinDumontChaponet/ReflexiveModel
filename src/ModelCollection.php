@@ -46,7 +46,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public function __construct(
 		private string $className,
 		private PDOStatement|\Reflexive\Query\Composed|null $statement = null,
-		private ?Closure $generator = null,
+		private ?Hydrator $hydrator = null,
 		private ?int $limit = null, // used to determine if is list
 		private int $offset = 0, // used to determine if is list
 		private ?PDO $database = null, // used for subsequent queries if any
@@ -68,7 +68,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 
 		$array = get_object_vars($this);
 		unset($array['statement']);
-		unset($array['generator']);
+		unset($array['hydrator']);
 		unset($array['database']);
 
 		return array_keys($array);
@@ -169,7 +169,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			if(empty($rs)) {
 				return [null, null];
 			} else {
-				[$key, $object] = ($this->generator)($rs, $this->database);
+				[$key, $object] = $this->hydrator->fetch($rs, $this->database);
 
 				if($this->cache) {
 					$this->keys[$index] = $key;

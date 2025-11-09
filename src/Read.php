@@ -34,14 +34,14 @@ class Read extends PullOne
 			$conditions = $this->query->getConditionGroup()->getConditions();
 			$id = $conditions[$this->schema->getTableName().'.'.$this->schema->getUIdColumnNameString().'_0']?->value ?? null;
 
-			if(null !== $id && ($object = static::_getModel($this->modelClassName, $id)) !== null)
+			if(null !== $id && ($object = Hydrator::getHydrator($this->modelClassName)->getFromCache($id)) !== null)
 				return $object;
 		}
 
 		$statement = $this->query->prepare($database);
 		if($statement->execute()) {
 			if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
-				return $this->getInstanciator()(
+				return Hydrator::getHydrator($this->modelClassName)->fetch(
 					$rs,
 					$database,
 				)[1];

@@ -43,7 +43,7 @@ class Search extends Pull
 			return new ModelCollection(
 				$this->modelClassName,
 				$this->query,
-				$this->getInstanciator(),
+				Hydrator::getHydrator($this->modelClassName),
 				$this->query->getLimit(),
 				$this->query->getOffset() ?? 0,
 				$database

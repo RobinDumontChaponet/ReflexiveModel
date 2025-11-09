@@ -11,6 +11,7 @@ use ReflectionNamedType;
 use ReflectionUnionType;
 
 use Composer\Script\Event;
+use PDOStatement;
 
 const PHP_TAB = "\t";
 
@@ -291,6 +292,33 @@ abstract class Model implements SCRUDInterface
 	public static function count(): Pull
 	{
 		return new Count(static::class);
+	}
+
+	public static function fetch(PDOStatement|\Reflexive\Query\Composed|ModelStatement $statement, ?\PDO $database, bool $lazy = false): ?static
+	{
+		if($statement instanceof ModelStatement) {
+			$statement = $statement->getQuery();
+		}
+		if($statement instanceof \Reflexive\Query\Composed) {
+			$statement = $statement->prepare($database);
+			$statement->execute();
+		}
+
+		if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
+			return Hydrator::getHydrator(static::class)->fetch($rs, $database, $lazy)[1] ?? null;
+		}
+		return null;
+	}
+	public static function fetchAll(PDOStatement $pdoStatement, ?\PDO $database, ?int $limit = null, int $offset = 0): ModelCollection
+	{
+		return new ModelCollection(
+			static::class,
+			$pdoStatement,
+			Hydrator::getHydrator(static::class),
+			$limit,
+			$offset,
+			$database
+		);
 	}
 
 	public static function exportGraph(Event $event): void
