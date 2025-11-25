@@ -31,11 +31,11 @@ abstract class Push extends ModelStatement
 		$modifiedPropertiesNames = $this->model->getModifiedPropertiesNames();
 		if($this->model->ignoreModifiedProperties || !empty($modifiedPropertiesNames)) {
 			foreach($this->schema->getColumns() as $propertyName => $column) {
-				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || (isset($column['autoIncrement']) && $column['autoIncrement']) || ($this->schema->hasReference($propertyName) && $this->schema->getReferenceCardinality($propertyName) === Cardinality::ManyToMany))
+				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $modifiedPropertiesNames)) || (isset($column['autoIncrement']) && $column['autoIncrement']) || (($this->schema->hasReference($propertyName) && $this->schema->getReferenceCardinality($propertyName) === Cardinality::ManyToMany)) || $this->schema->hasUIdProperty($propertyName))
 					continue;
 
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
-				$propertyReflection->setAccessible(true);
+				// $propertyReflection->setAccessible(true);
 
 				if($propertyReflection->isInitialized($this->model) && null !== $propertyReflection->getValue($this->model)) {
 					$value = $propertyReflection->getValue($this->model);
@@ -52,7 +52,7 @@ abstract class Push extends ModelStatement
 										match($type->getName()) {
 											'int' => (int)$value,
 											'bool' => (int)$value,
-											'double', 'float' => (double)$value,
+											'double', 'float' => (float)$value,
 											'string' => ''.$value,
 											default => ''.$value
 										}
@@ -101,9 +101,9 @@ abstract class Push extends ModelStatement
 
 			foreach($this->schema->getReferences() as $propertyName => $reference) {
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
-				$propertyReflection->setAccessible(true);
+				// $propertyReflection->setAccessible(true);
 
-				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())))
+				if((!$this->model->ignoreModifiedProperties && !in_array($propertyName, $this->model->getModifiedPropertiesNames())) || $this->schema->hasUIdProperty($propertyName))
 					continue;
 
 				switch($reference['cardinality']) {
@@ -141,8 +141,11 @@ abstract class Push extends ModelStatement
 	{
 		if($this->model->updateReferences) {
 			foreach($this->schema->getReferences() as $propertyName => $reference) {
+				if($this->schema->hasUIdProperty($propertyName))
+					continue;
+
 				$propertyReflection = new ReflectionProperty($this->model, $propertyName);
-				$propertyReflection->setAccessible(true);
+				// $propertyReflection->setAccessible(true);
 
 				if($reference['cardinality'] === Cardinality::ManyToMany) {
 					$value = $propertyReflection->isInitialized($this->model) ? $propertyReflection->getValue($this->model) : null;
@@ -197,8 +200,18 @@ abstract class Push extends ModelStatement
 
 	public function execute(\PDO $database): bool
 	{
+		if(empty($this->query->willSet()))
+			return false;
+
 		$statement = $this->query->prepare($database);
-		return $statement->execute();
+
+		if($statement->execute()) {
+			$this->model->resetModifiedPropertiesNames();
+
+			return true;
+		}
+
+		return false;
 	}
 
 	public function __toString(): string

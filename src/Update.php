@@ -63,26 +63,27 @@ class Update extends Push
 
 	public function execute(\PDO $database): bool
 	{
+		$this->constructOuterReferences();
+
 		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
 			if(!$superType::update($this->model)->execute($database))
 				return false;
 
-			foreach($superTypeSchema->getUIdColumnName() as $uid){
-				if($superTypeSchema->isColumnAutoIncremented($uid)) {
-					/** @psalm-suppress UndefinedMethod */
-					$this->query->set($uid, $this->model->$uid);
-				}
-			}
+			// foreach($superTypeSchema->getUIdColumnName() as $uid){
+			// 	if($superTypeSchema->isColumnAutoIncremented($uid)) {
+			// 		/** @psalm-suppress UndefinedMethod */
+			// 		$this->query->set($uid, $this->model->$uid);
+			// 	}
+			// }
 		}
-
-		$this->constructOuterReferences();
 
 		//empty($this->model->getModifiedPropertiesNames())
 		$execute = (!$this->model->updateUnmodified && empty($this->query->getSets())) ? null : parent::execute($database);
 
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
-			if(($referencedQuery instanceof Query\Update || $referencedQuery instanceof Query\Insert) && !empty($referencedQuery->willSet()))
+			if(($referencedQuery instanceof Query\Update || $referencedQuery instanceof Query\Insert) && !empty($referencedQuery->willSet())) {
 				$execute = $referencedQuery->prepare($database)->execute();
+			}
 			elseif($referencedQuery instanceof Query\Delete)
 				$execute = $referencedQuery->prepare($database)->execute();
 			elseif($referencedQuery instanceof ModelStatement && !empty($referencedQuery->getSets())) {
@@ -101,18 +102,19 @@ class Update extends Push
 	{
 		$str = '';
 
+		$this->constructOuterReferences();
+
 		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
 			$str = $superType::update($this->model);
 
-			foreach($superTypeSchema->getUIdColumnName() as $uid){
-				if($superTypeSchema->isColumnAutoIncremented($uid)) {
-					/** @psalm-suppress UndefinedMethod */
-					$this->query->set($uid, $this->model->$uid);
-				}
-			}
+			// foreach($superTypeSchema->getUIdColumnName() as $uid){
+			// 	if($superTypeSchema->isColumnAutoIncremented($uid)) {
+			// 		/** @psalm-suppress UndefinedMethod */
+			// 		$this->query->set($uid, $this->model->$uid);
+			// 	}
+			// }
 		}
 
-		$this->constructOuterReferences();
 
 		return parent::__toString() .'; '.$str;
 	}
