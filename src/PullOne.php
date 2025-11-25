@@ -19,13 +19,23 @@ abstract class PullOne extends ModelStatement
 
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
 		if(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+			$superColumnName = $superTypeSchema->getUIdColumnName();
+			if(is_array($superColumnName)) {
+				$superColumnName = array_first($superColumnName);
+			}
+
+			$columnName = $schema->getUIdColumnName();
+			if(is_array($columnName)) {
+				$columnName = array_first($columnName);
+			}
+
 			$this->query->join(
 				Query\Join::inner,
 				$superTypeSchema->getTableName(),
-				$superTypeSchema->getUIdColumnNameString(),
+				$superColumnName,
 				Comparator::EQUAL,
 				$schema->getTableName(),
-				$schema->getUidColumnNameString(),
+				$columnName,
 			);
 		}
 	}
@@ -52,13 +62,18 @@ abstract class PullOne extends ModelStatement
 
 		if($targetSchema) {
 			if($targetSchema->getReferenceCardinality($propertyName) == Cardinality::ManyToMany) {
+				$columnName = $this->schema->getUIdColumnName();
+				if(is_array($columnName)) {
+					$columnName = array_first($columnName);
+				}
+
 				$this->query->join(
 					Query\Join::inner,
 					$targetSchema->getReferenceForeignTableName($propertyName),
 					$targetSchema->getReferenceForeignRightColumnName($propertyName),
 					Comparator::EQUAL,
 					$this->schema->getTableName(),
-					$this->schema->getUidColumnNameString(),
+					$columnName,
 				);
 				$this->query->and(new Condition(
 					$targetSchema->getReferenceForeignTableName($propertyName).'.'.$targetSchema->getReferenceForeignColumnName($propertyName),
