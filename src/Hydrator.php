@@ -137,7 +137,7 @@ class Hydrator
 		foreach($columns as $propertyName => $column) {
 			if(isset($column['columnName'])) {
 				$propertyReflection = $classReflection->getProperty($propertyName);
-				$propertyReflection->setAccessible(true);
+				// $propertyReflection->setAccessible(true);
 
 				if($type = $propertyReflection->getType()) {
 					if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
