@@ -23,8 +23,6 @@ class ConditionGroup extends \Reflexive\Core\ConditionGroup
 		$joins = [];
 
 		foreach($this->conditions as $conditionArray) {
-			var_dump($conditionArray['condition']->name);
-
 			$baked = $conditionArray['condition']->bake($schema);
 
 			switch($conditionArray['operator']) {
