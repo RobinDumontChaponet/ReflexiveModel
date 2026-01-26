@@ -250,7 +250,7 @@ class Hydrator
 								$object,
 								$reference['type']::search()
 									->where(Condition::EQUAL(
-										$reference['columnName'],
+										$propertyName,
 										$object
 									)
 								)->execute($database)
