@@ -152,7 +152,7 @@ abstract class Push extends ModelStatement
 
 					if($value instanceof ModelCollection) { // TODO : this is temporary
 						foreach($value->getAddedKeys() as $addedKey) {
-							$referencedQuery = new Query\Insert();
+							$referencedQuery = new Query\Insert(ignore: true);
 							$referencedQuery->set($reference['foreignColumnName'], $this->model->getModelIdString())
 								->set($reference['foreignRightColumnName'], $addedKey)
 								->from($reference['foreignTableName']);

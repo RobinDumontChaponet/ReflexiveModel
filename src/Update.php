@@ -83,8 +83,7 @@ class Update extends Push
 		foreach($this->referencedQueries as $referencedQuery) { // TODO : this is temporary
 			if(($referencedQuery instanceof Query\Update || $referencedQuery instanceof Query\Insert) && !empty($referencedQuery->willSet())) {
 				$execute = $referencedQuery->prepare($database)->execute();
-			}
-			elseif($referencedQuery instanceof Query\Delete)
+			} elseif($referencedQuery instanceof Query\Delete)
 				$execute = $referencedQuery->prepare($database)->execute();
 			elseif($referencedQuery instanceof ModelStatement && !empty($referencedQuery->getSets())) {
 				if($this->model->updateReferences)

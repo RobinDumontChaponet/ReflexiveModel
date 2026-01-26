@@ -18,7 +18,8 @@ class Create extends Push
 
 	public function execute(\PDO $database): bool
 	{
-		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+		$superType = $this->schema->getSuperType();
+		if($superType !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
 			if(!$superType::create($this->model)->execute($database))
 				return false;
 
@@ -33,9 +34,13 @@ class Create extends Push
 		$execute = parent::execute($database);
 
 		if($execute) {
-			foreach($this->schema->getUIdColumnName() as $uid){
-				if($this->schema->isColumnAutoIncremented($uid))
-					$this->model->$uid = (int)$database->lastInsertId();
+			if($superType === null) {
+				$lastInsertedId = (int)$database->lastInsertId();
+				foreach($this->schema->getUIdColumnName() as $uid){
+					if($this->schema->isColumnAutoIncremented($uid)) {
+						$this->model->$uid = $lastInsertedId;
+					}
+				}
 			}
 
 			$this->constructOuterReferences();
