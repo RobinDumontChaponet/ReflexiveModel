@@ -29,7 +29,7 @@ class Count extends Pull
 		if($this->groupedBy) {
 			$array = [];
 			while (($rs = $statement->fetch(\PDO::FETCH_OBJ)) !== false) {
-				$array[$rs->g] = $rs->c; // get key from db ignoring property type, for now
+				$array[$rs->g ?? ""] = $rs->c; // get key from db ignoring property type, for now
 			}
 			return $array;
 		} else {
