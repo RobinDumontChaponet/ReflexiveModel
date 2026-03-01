@@ -24,6 +24,7 @@ class Delete extends ModelStatement
 	/*
 	 * @throws \TypeError
 	 */
+	#[\Override]
 	public function execute(\PDO $database): bool
 	{
 		$statement = parent::_prepare($database);

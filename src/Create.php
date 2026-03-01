@@ -16,6 +16,7 @@ class Create extends Push
 		parent::__construct($modelClassName, $model);
 	}
 
+	#[\Override]
 	public function execute(\PDO $database): bool
 	{
 		$superType = $this->schema->getSuperType();

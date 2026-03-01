@@ -147,7 +147,5 @@ class Condition extends \Reflexive\Core\Condition
 		}
 
 		throw new \TypeError('Property (or Reference) "'.$this->name.'" not found in Schema "'.$schema->getTableName().'"');
-
-		return [];
 	}
 }

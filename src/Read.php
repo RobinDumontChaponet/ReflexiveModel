@@ -22,6 +22,7 @@ class Read extends PullOne
 		}
 	}
 
+	#[\Override]
 	public function execute(\PDO $database): ?Model
 	{
 		$this->init();

@@ -609,6 +609,7 @@ class Schema implements \JsonSerializable
 		return json_encode($this, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_PRETTY_PRINT);
 	}
 
+	#[\Override]
 	public function jsonSerialize(): mixed
 	{
 		return [

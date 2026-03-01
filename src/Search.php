@@ -25,6 +25,7 @@ class Search extends Pull
 	/*
 	 * @throws \TypeError
 	 */
+	#[\Override]
 	public function execute(\PDO $database): ModelCollection|array
 	{
 		$this->init();
@@ -39,12 +40,12 @@ class Search extends Pull
 		// }
 
 		if($this->groupedBy) {
-			$array = [];
+			// $array = [];
 			// while (($rs = $query->fetch(\PDO::FETCH_OBJ)) !== false) {
 			// 	$array[$rs->g] = $rs->c;
 			// }
+			// return $array;
 			throw new \LogicException('Not yet implemented');
-			return $array;
 		} else {
 			return new ModelCollection(
 				$this->modelClassName,

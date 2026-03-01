@@ -198,6 +198,7 @@ abstract class Push extends ModelStatement
 		}
 	}
 
+	#[\Override]
 	public function execute(\PDO $database): bool
 	{
 		if(empty($this->query->willSet()))

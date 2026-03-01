@@ -60,7 +60,7 @@ abstract class Model implements SCRUDInterface
 			$classReflection = new ReflectionClass(static::class);
 
 			$parentClassName = get_parent_class(static::class);
-			if($parentClassName !== 'Reflexive\Model\Model') {
+			if($parentClassName !== false && $parentClassName !== 'Reflexive\Model\Model') {
 				self::$superType = $parentClassName;
 				$parentClassName::initModelAttributes();
 			}
@@ -97,6 +97,7 @@ abstract class Model implements SCRUDInterface
 		$this->reflexive_subType = $this::class;
 	}
 
+	#[\Override]
 	public function getModelId(): int|string|array
 	{
 		$schema = Schema::initFromAttributes($this::class);
@@ -105,6 +106,7 @@ abstract class Model implements SCRUDInterface
 
 		return null;
 	}
+	#[\Override]
 	public function getModelIdString(): ?string
 	{
 		$schema = Schema::initFromAttributes($this::class);
@@ -250,6 +252,7 @@ abstract class Model implements SCRUDInterface
 	 * Active Record
 	 */
 
+	#[\Override]
 	public static function search(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): Pull
 	{
 		$query = new Search(static::class);
@@ -262,11 +265,13 @@ abstract class Model implements SCRUDInterface
 		return $query;
 	}
 
+	#[\Override]
 	public static function create(Model &$model): Push
 	{
 		return new Create(static::class, $model);
 	}
 
+	#[\Override]
 	public static function read(?string $name = null, ?Comparator $comparator = null, string|int|float|array|bool|null $value = null): PullOne
 	{
 		$query = new Read(static::class);
@@ -279,16 +284,19 @@ abstract class Model implements SCRUDInterface
 		return $query;
 	}
 
+	#[\Override]
 	public static function update(Model &$model): Push
 	{
 		return new Update(static::class, $model);
 	}
 
+	#[\Override]
 	public static function delete(Model &$model): ModelStatement
 	{
 		return new Delete(static::class, $model);
 	}
 
+	#[\Override]
 	public static function count(): Pull
 	{
 		return new Count(static::class);

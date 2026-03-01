@@ -136,6 +136,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	/*
 	 * Implements Iterator
 	 */
+	#[\Override]
 	public function current(): mixed
 	{
 		return $this->lastObject;
@@ -204,17 +205,20 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return $this->objects;
 	}
 
+	#[\Override]
 	public function next(): void
 	{
 		$this->index++;
 		$this->fetchCurrent();
 	}
 
+	#[\Override]
 	public function key(): mixed
 	{
 		return $this->lastKey;
 	}
 
+	#[\Override]
 	public function valid(): bool
 	{
 		if(!$this->valid) {
@@ -227,12 +231,14 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return $this->valid;
 	}
 
+	#[\Override]
 	public function rewind(): void
 	{
 		$this->index = 0;
 		$this->fetchCurrent();
 	}
 
+	#[\Override]
 	public function has(SCRUDInterface $model): bool
 	{
 		if(enum_exists($model::class)) {
@@ -246,11 +252,13 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	/*
 	 * Implements ArrayAccess
 	 */
+	#[\Override]
 	public function offsetExists(mixed $key): bool
 	{
 		return null !== $this[$key];
 	}
 
+	#[\Override]
 	public function offsetGet(mixed $key): mixed
 	{
 		if(isset($this->objects[$key])) {
@@ -287,6 +295,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return null;
 	}
 
+	#[\Override]
 	public function offsetSet(mixed $offset, mixed $value): void
 	{
 		if(isset($offset) && isset($this[$offset]) && $this[$offset] instanceof Model) { // already in collection
@@ -310,6 +319,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		$this->count++;
 	}
 
+	#[\Override]
 	public function offsetUnset(mixed $key): void
 	{
 		if($this->offsetExists($key)) {
@@ -372,6 +382,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	/*
 	 * Implements Countable
 	 */
+	#[\Override]
 	public function count(): int
 	{
 		if($this->autoExecute && !empty($this->statement) && ($this->reset || null === $this->statement->errorCode())) {
@@ -385,6 +396,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	/*
 	 * Implements JsonSerializable
 	 */
+	#[\Override]
 	public function jsonSerialize(): mixed
 	{
 		$this->cacheAll();

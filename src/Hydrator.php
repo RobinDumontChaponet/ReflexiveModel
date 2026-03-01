@@ -42,10 +42,9 @@ class Hydrator
 	{
 		if(static::$useInternalCache) {
 			return isset($this->models[$id]);
-		} else
-			return static::$cache?->has('model_'.$this->modelClassName.'_'.$id) ?? false;
+		}
 
-		return false;
+		return static::$cache?->has('model_'.$this->modelClassName.'_'.$id) ?? false;
 	}
 
 	protected function _setModel(Model $model): void

@@ -61,6 +61,7 @@ class Update extends Push
 		}
 	}
 
+	#[\Override]
 	public function execute(\PDO $database): bool
 	{
 		$this->constructOuterReferences();

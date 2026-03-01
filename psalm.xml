@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <psalm
 	errorLevel="7"
+	findUnusedPsalmSuppress="true"
 	resolveFromConfigFile="true"
+	cacheDirectory=".psalm/cache"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns="https://getpsalm.org/schema/config"
 	xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
@@ -14,7 +16,12 @@
 	</projectFiles>
 
 	<issueHandlers>
-	  <UndefinedConstant errorLevel="suppress" />
-	  <UndefinedGlobalVariable errorLevel="suppress" />
+		<UndefinedConstant errorLevel="suppress" />
+		<UndefinedGlobalVariable errorLevel="suppress" />
+
+		<PossiblyUnusedProperty errorLevel="suppress" />
+		<PossiblyUnusedMethod errorLevel="suppress" />
+		<PossiblyUnusedReturnValue errorLevel="suppress" />
+		<UnusedClass errorLevel="suppress" />
 	</issueHandlers>
 </psalm>
