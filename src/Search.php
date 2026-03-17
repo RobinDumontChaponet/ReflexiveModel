@@ -30,14 +30,14 @@ class Search extends Pull
 	{
 		$this->init();
 
-		// if(!$this->query->isOrdered()) {
-			$columnName = $this->schema->getUIdColumnName();
-			if(is_array($columnName)) {
-				$columnName = array_first($columnName);
-			}
-
-			$this->query->order($this->schema->getTableName().'.'.$columnName);
-		// }
+// 		if(!$this->query->isOrdered()) {
+// 			$columnName = $this->schema->getUIdColumnName();
+// 			if(is_array($columnName)) {
+// 				$columnName = array_first($columnName);
+// 			}
+//
+// 			$this->query->order($this->schema->getTableName().'.'.$columnName);
+// 		}
 
 		if($this->groupedBy) {
 			// $array = [];
