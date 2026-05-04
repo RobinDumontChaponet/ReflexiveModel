@@ -152,6 +152,11 @@ class Hydrator
 								$value = $rs->{$column['columnName']};
 
 								if($type->isBuiltin()) { // PHP builtin types
+									if($type->getName() == 'array' && $column['type'] == 'json') {
+										$propertyReflection->setValue($object, json_decode($value, true));
+										break;
+									}
+
 									$propertyReflection->setValue($object, $value);
 									break;
 								} else {
