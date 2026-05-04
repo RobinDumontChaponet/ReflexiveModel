@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
+use Artwork;
 use Reflexive\Core\Comparator;
 use ReflectionClass;
 use ReflectionProperty;
@@ -23,7 +24,7 @@ abstract class Model implements SCRUDInterface
 	protected static array $attributedProperties = [];
 	// public bool $autoInitializeProperties = true;
 
-	protected static ?string $superType = null;
+	public static array $superType = [];
 
 	protected array $modifiedProperties = [];
 	public bool $ignoreModifiedProperties = false;
@@ -61,7 +62,7 @@ abstract class Model implements SCRUDInterface
 
 			$parentClassName = get_parent_class(static::class);
 			if($parentClassName !== false && $parentClassName !== 'Reflexive\Model\Model') {
-				self::$superType = $parentClassName;
+				static::$superType[static::class] = $parentClassName;
 				$parentClassName::initModelAttributes();
 			}
 
@@ -151,23 +152,28 @@ abstract class Model implements SCRUDInterface
 
 	private function &getValue(string $name): mixed
 	{
-		if(isset(static::$attributedProperties[static::class][$name]) || isset(static::$attributedProperties[static::$superType][$name])) {
-			if(property_exists($this, $name) && !isset($this->{$name})) {
-				$propertyReflection = new ReflectionProperty(static::class, $name);
-				$type = $propertyReflection->getType();
-				if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
-					$this->{$name} = new ModelCollection(self::class);
-				elseif($type->allowsNull())
-					$this->{$name} = null;
-			}
-
-			return $this->{$name};
-		}
+		if(isset(static::$attributedProperties[static::class][$name]))
+			return $this->_getValue(static::class, $name);
+		elseif(isset(static::$attributedProperties[static::$superType[static::class]][$name]))
+			return $this->_getValue(static::$superType[static::class], $name);
 
 		set_error_handler(self::errorHandler());
 		trigger_error('Access (get) to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
 
 		return null;
+	}
+	private function &_getValue(string $className, string $name): mixed
+	{
+		if(property_exists($className, $name) && !isset($this->{$name})) {
+			$propertyReflection = new ReflectionProperty($className, $name);
+			$type = $propertyReflection->getType();
+			if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
+				$this->{$name} = new ModelCollection(static::class);
+			elseif($type->allowsNull())
+				$this->{$name} = null;
+		}
+
+		return $this->{$name};
 	}
 
 	private function _setValue(string $className, string $name, mixed $value): void
@@ -190,8 +196,8 @@ abstract class Model implements SCRUDInterface
 	private function setValue(string $name, mixed $value): void
 	{
 		$className = static::class;
-		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$attributedProperties[static::$superType][$name])) {
-			$className = static::$superType;
+		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$attributedProperties[static::$superType[static::class]][$name])) {
+			$className = static::$superType[static::class];
 		}
 
 		$this->_setValue($className, $name, $value);
