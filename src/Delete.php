@@ -10,7 +10,7 @@ class Delete extends ModelStatement
 {
 	public function __construct(
 		string $modelClassName,
-		private Model $model
+		protected Model $model
 	)
 	{
 		parent::__construct($modelClassName);
