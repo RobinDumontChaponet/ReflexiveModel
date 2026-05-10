@@ -994,7 +994,8 @@ class Schema implements \JsonSerializable
 
 	public static function write(string $message, int $colorCode = 0): void
 	{
-		// echo str_repeat(' ', static::$indent), "\e[1;", $colorCode, "m", $message, "\e[0m", PHP_EOL;
+		if(static::$debug)
+			echo str_repeat(' ', static::$indent), "\e[1;", $colorCode, "m", $message, "\e[0m", PHP_EOL;
 	}
 	public static int $indent = 0;
 	public static function indent(): void
@@ -1374,32 +1375,6 @@ class Schema implements \JsonSerializable
 		return rtrim($str, ', ').'; ';
 	}
 
-	private static function debug(string $messages): void
-	{
-		if(static::$debug)
-			echo $messages, PHP_EOL;
-	}
-	private static function normal(string $messages): void
-	{
-		if(static::$debug)
-			echo $messages, PHP_EOL;
-	}
-	private static function quiet(string $messages): void
-	{
-		if(static::$debug)
-			echo $messages, PHP_EOL;
-	}
-	private static function verbose(string $messages): void
-	{
-		if(static::$debug)
-			echo $messages, PHP_EOL;
-	}
-	private static function veryVerbose(string $messages): void
-	{
-		if(static::$debug)
-			echo $messages, PHP_EOL;
-	}
-
 	public static function dumpSQL(): string
 	{
 		$str = '';
@@ -1471,25 +1446,6 @@ class Schema implements \JsonSerializable
 	public static function exportSQL(): void
 	{
 		echo self::dumpSQL();
-	}
-
-	private static function dbIntegerSize(int $min, int $max): string
-	{
-		$intSizes = [
-			'TINYINT' => 255,
-			'SMALLINT' => 65535,
-			'MEDIUMINT' => 16777215,
-			'INT' => 4294967295,
-			'BIGINT' => 18446744073709551615,
-		];
-		foreach($intSizes as $typeName => $maxValue) {
-			if($min >= 0 && $max <= $maxValue) {
-				return $typeName.' UNSIGNED';
-			} elseif($min >= -ceil($maxValue/2) && $max <= floor($maxValue/2))
-				return $typeName;
-		}
-
-		throw new \InvalidArgumentException('Integer overflow', 500);
 	}
 
 	private static function isdbTypeNumeric(string $type): bool

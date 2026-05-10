@@ -73,4 +73,32 @@ final class ModelTest extends TestCase
 		$this->assertArrayNotHasKey('ignoreModifiedProperties', $debugInfo);
 		$this->assertArrayNotHasKey('reflexive_subType', $debugInfo);
 	}
+
+	public function testUndefinedMagicPropertyThrowsError(): void
+	{
+		// Verifies unknown magic properties fail without emitting HTML error output.
+		$this->expectException(\Error::class);
+		$this->expectExceptionMessage('Access (get) to undefined property');
+
+		(new ModelTestArticle())->missing;
+	}
+
+	public function testReadonlyMagicPropertyThrowsError(): void
+	{
+		// Verifies read-only managed properties cannot be written through magic access.
+		$this->expectException(\Error::class);
+		$this->expectExceptionMessage('is readonly');
+
+		$model = new ModelTestArticle();
+		$model->reflexive_subType = ModelTestArticle::class;
+	}
+
+	public function testUndefinedMagicMethodThrowsError(): void
+	{
+		// Verifies unknown generated accessors fail without emitting HTML error output.
+		$this->expectException(\Error::class);
+		$this->expectExceptionMessage('Call to undefined method');
+
+		(new ModelTestArticle())->missingMethod();
+	}
 }

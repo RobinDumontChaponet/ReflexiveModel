@@ -13,7 +13,7 @@ class Condition extends \Reflexive\Core\Condition
 	public function __construct(
 		string $name,
 		Comparator $comparator,
-		string|int|float|array|bool|Model|ModelCollection|DateTimeInterface|null $value = null
+		string|int|float|array|bool|Model|ModelCollection|DateTimeInterface|\UnitEnum|null $value = null
 	) {
 		parent::__construct($name, $comparator, null);
 		$this->value = $value;
@@ -36,7 +36,6 @@ class Condition extends \Reflexive\Core\Condition
 
 	public function bake(Schema $schema): array
 	{
-		$queryCondition = null;
 		$joins = [];
 		$value = $this->value;
 
@@ -54,7 +53,12 @@ class Condition extends \Reflexive\Core\Condition
 		if($targetSchema) {
 			$value = match(gettype($value)) {
 				'boolean' => (int)$value,
-				'object' => $value instanceof DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value->id,
+				'object' => match(true) {
+					$value instanceof DateTimeInterface => $value->format('Y-m-d H:i:s'),
+					$value instanceof \UnitEnum => $value->name,
+					$value instanceof Model => $value->getModelIdString(),
+					default => $value->id,
+				},
 				default => $value,
 			};
 
@@ -101,7 +105,6 @@ class Condition extends \Reflexive\Core\Condition
 						break;
 						default:
 							throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
-						break;
 					}
 				} else {
 					throw new \LogicException('Mhm. What should I do ?');
@@ -132,7 +135,6 @@ class Condition extends \Reflexive\Core\Condition
 					break;
 					default:
 						throw new \LogicException('Case "'.$referenceCardinality?->name.'" not implemented');
-					break;
 				}
 			} elseif(null === $value && $targetSchema->isReferenceNullable($this->name)) {
 				$queryCondition = new Query\Condition($targetSchema->getTableName().'.'.$targetSchema->getReferenceColumnName($this->name), $this->comparator, $value);

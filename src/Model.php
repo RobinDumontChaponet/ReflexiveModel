@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Artwork;
 use Reflexive\Core\Comparator;
 use ReflectionClass;
 use ReflectionProperty;
@@ -158,15 +157,15 @@ abstract class Model implements SCRUDInterface
 
 	private function &getValue(string $name): mixed
 	{
-		if(isset(static::$attributedProperties[static::class][$name]))
-			return $this->_getValue(static::class, $name);
-		elseif(isset(static::$attributedProperties[static::$superType[static::class]][$name]))
-			return $this->_getValue(static::$superType[static::class], $name);
+		if(isset(static::$attributedProperties[static::class][$name])) {
+			$value =& $this->_getValue(static::class, $name);
+			return $value;
+		} elseif(isset(static::$superType[static::class], static::$attributedProperties[static::$superType[static::class]][$name])) {
+			$value =& $this->_getValue(static::$superType[static::class], $name);
+			return $value;
+		}
 
-		set_error_handler(self::errorHandler());
-		trigger_error('Access (get) to undefined property '.static::class.'::$'.$name, E_USER_ERROR);
-
-		return null;
+		throw new \Error('Access (get) to undefined property '.static::class.'::$'.$name);
 	}
 	private function &_getValue(string $className, string $name): mixed
 	{
@@ -191,18 +190,16 @@ abstract class Model implements SCRUDInterface
 
 				$this->{$name} = $value;
 			} else {
-				set_error_handler(self::errorHandler());
-				trigger_error($className.'::$'.$name.' is readonly', E_USER_ERROR);
+				throw new \Error($className.'::$'.$name.' is readonly');
 			}
 		} else {
-			set_error_handler(self::errorHandler());
-			trigger_error('Access (set) to undefined property '.$className.'::$'.$name, E_USER_ERROR);
+			throw new \Error('Access (set) to undefined property '.$className.'::$'.$name);
 		}
 	}
 	private function setValue(string $name, mixed $value): void
 	{
 		$className = static::class;
-		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$attributedProperties[static::$superType[static::class]][$name])) {
+		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$superType[static::class], static::$attributedProperties[static::$superType[static::class]][$name])) {
 			$className = static::$superType[static::class];
 		}
 
@@ -211,7 +208,8 @@ abstract class Model implements SCRUDInterface
 
 	function &__get(string $name): mixed
 	{
-		return $this->getValue($name);
+		$value =& $this->getValue($name);
+		return $value;
 	}
 
 	public function __set($name, $value)
@@ -234,30 +232,13 @@ abstract class Model implements SCRUDInterface
 
 			return $this->setValue(static::$setters[static::class][$name], ...$arguments);
 		} else {
-			set_error_handler(self::errorHandler());
-			trigger_error('Call to undefined method '.static::class.'::'.$name.'()', E_USER_ERROR);
+			throw new \Error('Call to undefined method '.static::class.'::'.$name.'()');
 		}
-
-		return null;
 	}
 
 	public static function getReflexiveSubTypes(): array
 	{
 		return Schema::getSchema(static::class)?->getSubTypes() ?? [];
-	}
-
-	private static function errorHandler(): null|callable
-	{
-		return function($level, $message, $file, $line) {
-			$level; $line; // shut up, IDEs
-			if($file == __FILE__) {
-				$debug = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-
-				echo PHP_EOL, '<strong>'.$message.'</strong> in '.($debug[2]['file']??'?').' on line '.($debug[2]['line']??'?'), PHP_EOL;
-				return true; // prevent the PHP error handler from continuing
-			}
-			return false;
-		};
 	}
 
 	/*

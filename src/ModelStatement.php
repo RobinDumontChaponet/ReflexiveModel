@@ -59,7 +59,7 @@ abstract class ModelStatement
 
 	public function from(Schema $schema): static
 	{
-		$this->$schema = $schema;
+		$this->schema = $schema;
 		return $this;
 	}
 

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Reflexive\Model;
 
-use Closure;
-use PDOStatement;
 use Reflexive\Core\Comparator;
 use ReflectionClass;
 use ReflectionUnionType;
@@ -69,7 +67,7 @@ class Hydrator
 
 	private function makeGhost(string $className, object $rs, $database): object {
 		$classReflection = new ReflectionClass($className);
-		return $classReflection->newLazyProxy(function (object $proxy) use ($rs, $database, $className) {
+		return $classReflection->newLazyProxy(function (object $_proxy) use ($rs, $database, $className) {
 			$statement = null;
 			if($rs instanceof ModelStatement) {
 				$statement = $rs->getQuery();

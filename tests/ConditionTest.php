@@ -15,6 +15,12 @@ use Reflexive\Model\Schema;
 use Reflexive\Model\Table;
 use Reflexive\Query\Condition as QueryCondition;
 
+enum ConditionTestStatus
+{
+	case Draft;
+	case Published;
+}
+
 #[Table('condition_test_articles')]
 final class ConditionTestArticle extends Model
 {
@@ -23,6 +29,10 @@ final class ConditionTestArticle extends Model
 	#[Property]
 	#[Column('published')]
 	protected bool $published = false;
+
+	#[Property]
+	#[Column('status')]
+	protected ConditionTestStatus $status = ConditionTestStatus::Draft;
 }
 
 final class ConditionTest extends TestCase
@@ -38,6 +48,15 @@ final class ConditionTest extends TestCase
 		$this->assertSame('condition_test_articles.published', $baked['condition']->name);
 		$this->assertSame(Comparator::EQUAL, $baked['condition']->comparator);
 		$this->assertSame(1, $baked['condition']->value);
+	}
+
+	public function testBakeMapsEnumColumnValueToCaseName(): void
+	{
+		// Verifies enum values on model columns bake to their stable case names.
+		$schema = Schema::getSchema(ConditionTestArticle::class);
+		$baked = (new Condition('status', Comparator::EQUAL, ConditionTestStatus::Published))->bake($schema);
+
+		$this->assertSame('Published', $baked['condition']->value);
 	}
 
 	public function testBakeRejectsUnknownModelProperty(): void

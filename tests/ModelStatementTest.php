@@ -12,6 +12,7 @@ use Reflexive\Model\Model;
 use Reflexive\Model\ModelId;
 use Reflexive\Model\Property;
 use Reflexive\Model\Read;
+use Reflexive\Model\Schema;
 use Reflexive\Model\Table;
 
 #[Table('model_statement_test_records')]
@@ -52,5 +53,18 @@ final class ModelStatementTest extends TestCase
 		$query = (new Read(ModelStatementTestRecord::class))->getQuery();
 
 		$this->assertSame('SELECT `model_statement_test_records`.`id`, `model_statement_test_records`.`name` FROM `model_statement_test_records`; '.PHP_EOL.'/* {'.PHP_EOL.'} */ ', (string) $query);
+	}
+
+	public function testFromOverridesStatementSchema(): void
+	{
+		// Verifies custom schemas can be assigned to an existing model statement.
+		$schema = new Schema('custom_model_statement_records');
+		$schema->setColumnName('id', 'id');
+		$schema->setColumnType('id', 'INT');
+		$schema->setUIdPropertyName('id');
+
+		$sql = (string) (new Read(ModelStatementTestRecord::class))->from($schema);
+
+		$this->assertStringContainsString('FROM `custom_model_statement_records`', $sql);
 	}
 }

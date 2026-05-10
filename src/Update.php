@@ -66,16 +66,9 @@ class Update extends Push
 	{
 		$this->constructOuterReferences();
 
-		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+		if(($superType = $this->schema->getSuperType()) !== null) { // is subType of $superType
 			if(!$superType::update($this->model)->execute($database))
 				return false;
-
-			// foreach($superTypeSchema->getUIdColumnName() as $uid){
-			// 	if($superTypeSchema->isColumnAutoIncremented($uid)) {
-			// 		/** @psalm-suppress UndefinedMethod */
-			// 		$this->query->set($uid, $this->model->$uid);
-			// 	}
-			// }
 		}
 
 		//empty($this->model->getModifiedPropertiesNames())
@@ -104,17 +97,9 @@ class Update extends Push
 
 		$this->constructOuterReferences();
 
-		if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
+		if(($superType = $this->schema->getSuperType()) !== null) { // is subType of $superType
 			$str = $superType::update($this->model);
-
-			// foreach($superTypeSchema->getUIdColumnName() as $uid){
-			// 	if($superTypeSchema->isColumnAutoIncremented($uid)) {
-			// 		/** @psalm-suppress UndefinedMethod */
-			// 		$this->query->set($uid, $this->model->$uid);
-			// 	}
-			// }
 		}
-
 
 		return parent::__toString() .'; '.$str;
 	}
