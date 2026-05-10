@@ -119,13 +119,19 @@ abstract class Model implements SCRUDInterface
 
 	public function setModelId(int|string ...$id): void
 	{
-		// if(count($id) == 1)
-		// 	$id = array_values($id)[0];
-
 		$schema = Schema::initFromAttributes($this::class);
-		if($schema)
-			foreach($id as $key => $value)
-				$schema->setModelId($this, $key, $value);
+		if($schema) {
+			$uidProperties = $schema->getUIdPropertyName();
+			$uidProperties = is_array($uidProperties) ? array_values($uidProperties) : [$uidProperties];
+
+			foreach($id as $key => $value) {
+				$propertyName = is_string($key) ? $key : ($uidProperties[$key] ?? null);
+				if(!is_string($propertyName))
+					throw new \InvalidArgumentException('Too many ids for schema.');
+
+				$schema->setModelId($this, $propertyName, $value);
+			}
+		}
 	}
 
 	public function __wakeup()

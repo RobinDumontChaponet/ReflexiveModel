@@ -5,6 +5,7 @@ docs/
 doxygen-config
 coverage.clover
 .php_cs.cache
+.phpunit.cache
 .DS_Store
 .nova
 .psalm

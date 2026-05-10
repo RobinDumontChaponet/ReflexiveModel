@@ -88,9 +88,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	{
 		if($this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite') {
 			if($this->count === null) {
-				$this->rewind();
+				$this->cacheAll();
+				$this->count = count($this->objects);
 			}
-			return $this->count ?? count($this->objects);
+			return $this->count;
 			// $countQuery = $this->className::count()->where();
 			// return $countQuery->execute($this->database);
 		} else {
@@ -125,9 +126,9 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		$result = $this->statement?->execute($params);
-		$this->count = $this->rowCount();
+		$this->count = $this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite' ? null : $this->rowCount();
 
-		$this->isList = (0 === $this->offset && $this->limit == $this->count ?? 0);
+		$this->isList = (0 === $this->offset && $this->count !== null && $this->limit == $this->count);
 
 		return $result ?? false;
 	}
@@ -389,7 +390,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			$this->execute();
 		}
 
-		return $this->count;
+		if($this->count === null && $this->database instanceof \Reflexive\Core\Database && $this->database->getDSNPrefix() == 'sqlite')
+			$this->count = $this->rowCount();
+
+		return $this->count ?? 0;
 	}
 
 	/*

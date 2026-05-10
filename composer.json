@@ -18,11 +18,12 @@
 		"composer/composer": "^2",
 		"reflexive/core": "dev-master",
 		"reflexive/query": "dev-master",
-		"psr/simple-cache": "^1.0"
+		"psr/simple-cache": "^3.0"
 	},
 	"require-dev": {
 		"vimeo/psalm": "^6.0",
-		"bmitch/churn-php": "^1.7"
+		"bmitch/churn-php": "^1.7",
+		"phpunit/phpunit": "^13.1"
 	},
 	"autoload": {
 		"psr-4": {
@@ -30,6 +31,7 @@
 		}
 	},
 	"scripts": {
+		"test": "phpunit",
 		"exportSQL": "Reflexive\\Model\\Schema::exportSQL",
 		"exportGraph": "Reflexive\\Model\\Model::exportGraph"
 	}
