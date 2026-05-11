@@ -37,6 +37,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	private array $addedKeys = [];
 	private array $modifiedKeys = [];
 	private array $removedKeys = [];
+	private array $removedObjects = [];
 
 	// global cache ?
 	// protected static array $collections = [];
@@ -324,6 +325,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		$this->objects[$offset] = $value;
+		if(false === $this->findKeyIndex($this->keys, $offset))
+			$this->keys[] = $offset;
 		if(false === $this->findKeyIndex($this->addedKeys, $offset))
 			$this->addedKeys[] = $offset;
 
@@ -336,6 +339,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public function offsetUnset(mixed $key): void
 	{
 		if($this->offsetExists($key)) {
+			$object = $this[$key];
 			unset($this->objects[$key]);
 			$trackedKey = $key;
 			$keyIndex = $this->findKeyIndex($this->keys, $key);
@@ -349,8 +353,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 				if(false !== $addedKeyIndex)
 					unset($this->addedKeys[$addedKeyIndex]);
 			} else {
-				if(false === $this->findKeyIndex($this->removedKeys, $trackedKey))
+				if(false === $this->findKeyIndex($this->removedKeys, $trackedKey)) {
 					$this->removedKeys[] = $trackedKey;
+					$this->removedObjects[$trackedKey] = $object;
+				}
 			}
 			$this->count--;
 
@@ -379,20 +385,148 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return false;
 	}
 
+	private function uniqueKeys(array ...$keySets): array
+	{
+		$keys = [];
+		foreach($keySets as $keySet) {
+			foreach($keySet as $key) {
+				if(false === $this->findKeyIndex($keys, $key))
+					$keys[] = $key;
+			}
+		}
+
+		return $keys;
+	}
+
+	private function getCachedModifiedKeys(): array
+	{
+		$keys = [];
+		foreach($this->objects as $key => $object) {
+			if(
+				$object instanceof Model
+				&& $object->hasModifiedProperties()
+				&& false === $this->findKeyIndex($this->addedKeys, $key)
+				&& false === $this->findKeyIndex($this->removedKeys, $key)
+			) {
+				$keys[] = $key;
+			}
+		}
+
+		return $keys;
+	}
+
+	/**
+	 * @return array{created: int, updated: int, deleted: int}
+	 */
+	public function push(?PDO $database = null): array
+	{
+		if(!is_a($this->className, Model::class, true))
+			throw new \LogicException('Can only push collections of '.Model::class.' models.');
+
+		$result = [
+			'created' => 0,
+			'updated' => 0,
+			'deleted' => 0,
+		];
+
+		$database ??= $this->database;
+		if($database === null) {
+			throw new \LogicException('No database for collection push.');
+		}
+
+		$remainingAddedKeys = [];
+		foreach($this->addedKeys as $key) {
+			if(!isset($this->objects[$key]) || !$this->objects[$key] instanceof Model) {
+				$remainingAddedKeys[] = $key;
+				continue;
+			}
+
+			$model = $this->objects[$key];
+			if($this->className::create($model)->execute($database)) {
+				$result['created']++;
+				$newKey = $model->getModelIdString();
+				if($newKey !== null && $newKey !== (string)$key) {
+					unset($this->objects[$key]);
+					$this->objects[$newKey] = $model;
+
+					$keyIndex = $this->findKeyIndex($this->keys, $key);
+					if(false !== $keyIndex)
+						$this->keys[$keyIndex] = $newKey;
+				}
+			} else {
+				$remainingAddedKeys[] = $key;
+			}
+		}
+
+		$remainingModifiedKeys = [];
+		foreach($this->uniqueKeys($this->modifiedKeys, $this->getCachedModifiedKeys()) as $key) {
+			if(!isset($this->objects[$key]) || !$this->objects[$key] instanceof Model) {
+				$remainingModifiedKeys[] = $key;
+				continue;
+			}
+
+			$model = $this->objects[$key];
+			if($this->className::update($model)->execute($database))
+				$result['updated']++;
+			else
+				$remainingModifiedKeys[] = $key;
+		}
+
+		$remainingRemovedKeys = [];
+		$remainingRemovedObjects = [];
+		foreach($this->removedKeys as $key) {
+			$model = $this->removedObjects[$key] ?? null;
+			if(!$model instanceof Model)
+				$model = $this->makeModelForKey($key);
+
+			if($this->className::delete($model)->execute($database)) {
+				$result['deleted']++;
+				unset($this->objects[$key]);
+				unset($this->removedObjects[$key]);
+			} else {
+				$remainingRemovedKeys[] = $key;
+				$remainingRemovedObjects[$key] = $model;
+			}
+		}
+
+		$this->addedKeys = array_values($remainingAddedKeys);
+		$this->modifiedKeys = array_values($remainingModifiedKeys);
+		$this->removedKeys = array_values($remainingRemovedKeys);
+		$this->removedObjects = $remainingRemovedObjects;
+
+		return $result;
+	}
+
+	private function makeModelForKey(int|string $key): Model
+	{
+		$model = new $this->className();
+		$model->setModelId($key);
+
+		return $model;
+	}
+
 	public function unsetAll(bool $keepObjects = true): int
 	{
 		if(!$this->exhausted && $this->autoExecute)
 			$this->cacheAll();
 
-		$count = count($this->addedKeys) + count($this->modifiedKeys) + count($this->keys);
-		$removedKeys = array_merge($this->removedKeys, $this->modifiedKeys, $this->keys);
-		$this->removedKeys = array_values(array_unique($removedKeys));
+		$persistedKeys = array_filter(
+			$this->keys,
+			fn($key): bool => false === $this->findKeyIndex($this->addedKeys, $key)
+		);
+		$affectedKeys = $this->uniqueKeys($this->addedKeys, $this->modifiedKeys, $persistedKeys);
+		$this->removedKeys = $this->uniqueKeys($this->removedKeys, $this->modifiedKeys, $persistedKeys);
+		foreach($this->removedKeys as $key) {
+			if(isset($this->objects[$key]))
+				$this->removedObjects[$key] = $this->objects[$key];
+		}
 
 		$this->addedKeys = $this->modifiedKeys = $this->keys = [];
+		$this->count = 0;
 		if(!$keepObjects)
 			$this->objects = [];
 
-		return $count;
+		return count($affectedKeys);
 	}
 
 	/*
