@@ -310,16 +310,44 @@ abstract class Model implements SCRUDInterface
 		}
 		return null;
 	}
-	public static function fetchAll(PDOStatement $pdoStatement, ?\PDO $database, ?int $limit = null, int $offset = 0): ModelCollection
+	public static function fetchAll(PDOStatement|\Reflexive\Query\Composed $statement, ?\PDO $database, ?int $limit = null, int $offset = 0): ModelCollection
 	{
 		return new ModelCollection(
 			static::class,
-			$pdoStatement,
+			$statement,
 			Hydrator::getHydrator(static::class),
 			$limit,
 			$offset,
 			$database
 		);
+	}
+
+	public static function getHydratableColumnsString(?string $alias = null): string
+	{
+		$schema = Schema::getSchema(static::class);
+
+		if ($schema->isSuperType()) {
+			$columns = array_merge(
+				$schema->getUIdColumnName(),
+				['reflexive_subType']
+			);
+		} elseif (
+			($superType = $schema->getSuperType()) !== null
+			&& ($superTypeSchema = Schema::getSchema($superType))
+		) {
+			$columns = array_merge(
+				$schema->getColumnNames(),
+				$superTypeSchema->getColumnNames()
+			);
+		} else {
+			$columns = $schema->getColumnNames();
+		}
+
+		$prefix = $alias ? "`$alias`." : '';
+		return implode(', ', array_map(
+			fn(string $column) => $prefix . "`$column`",
+			$columns
+		));
 	}
 
 	public static function exportGraph(Event $event): void
