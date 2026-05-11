@@ -112,6 +112,27 @@ final class ModelCollectionTest extends TestCase
 		$this->assertCount(0, $collection);
 	}
 
+	public function testUnsettingEquivalentNumericKeyClearsCachedKey(): void
+	{
+		// Verifies int and numeric-string keys do not leave stale cache indexes.
+		$first = new CollectionTestItem();
+		$first->id = 1;
+		$second = new CollectionTestItem();
+		$second->id = 2;
+
+		$collection = new ModelCollection(CollectionTestItem::class);
+		$this->seedExistingObjects($collection, ['1' => $first, '2' => $second]);
+		unset($collection[2]);
+
+		$remaining = [];
+		foreach($collection as $key => $item) {
+			$remaining[$key] = $item;
+		}
+
+		$this->assertSame(['1' => $first], $remaining);
+		$this->assertSame(['2'], $collection->getRemovedKeys());
+	}
+
 	public function testUnsetAllTracksEveryKnownKey(): void
 	{
 		// Verifies bulk removal of existing items keeps every tracked key.

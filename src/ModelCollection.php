@@ -8,6 +8,10 @@ use InvalidArgumentException;
 use PDO;
 use PDOStatement;
 
+/**
+ * @implements \Iterator<int|string|null, mixed>
+ * @implements \ArrayAccess<int|string|null, mixed>
+ */
 class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable, \JsonSerializable
 {
 	// Parameters
@@ -79,6 +83,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			return get_object_vars($this);
 
 		return [
+			'className' => $this->className,
 			'exhausted' => $this->exhausted,
 			'objects' => $this->objects,
 		];
@@ -104,6 +109,10 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(!empty($this->statement) && $this->statement instanceof PDOStatement && null === $this->statement->errorCode())
 			$this->count = null;//$this->rowCount();
 
+		$this->index = 0;
+		$this->lastKey = null;
+		$this->lastObject = null;
+		$this->valid = false;
 		$this->exhausted = false;
 	}
 
@@ -157,10 +166,16 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	// fetch from statement or from cache, updates cache. Do not advance cursor.
 	private function fetch(int $index): array
 	{
-		if($this->cache && isset($this->keys[$index])) { // exists in cache
+		while($this->cache && isset($this->keys[$index])) { // exists in cache
 			$key = $this->keys[$index];
-			return [$key, $this->objects[$key]];
-		} elseif(!empty($this->statement)) { // not yet in cache
+			if(isset($this->objects[$key]))
+				return [$key, $this->objects[$key]];
+
+			unset($this->keys[$index]);
+			$this->keys = array_values($this->keys);
+		}
+
+		if(!empty($this->statement)) { // not yet in cache
 			$rs = $this->statement->fetch(
 				PDO::FETCH_OBJ,
 				PDO::FETCH_ORI_ABS,
@@ -190,10 +205,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			return;
 		else {
 			$this->cache = true;
-			foreach($this as $k => $v) {
-				$k;
-				$v;
-			}
+			foreach($this as $_) {}
 		}
 	}
 
@@ -299,7 +311,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	public function offsetSet(mixed $offset, mixed $value): void
 	{
 		if(isset($offset) && isset($this[$offset]) && $this[$offset] instanceof Model) { // already in collection
-			if($value->hasModifiedProperties() && !in_array($offset, $this->modifiedKeys)) { // is modified
+			$this->objects[$offset] = $value;
+			if(false === $this->findKeyIndex($this->addedKeys, $offset) && $value->hasModifiedProperties() && false === $this->findKeyIndex($this->modifiedKeys, $offset)) { // is modified
 				$this->modifiedKeys[] = $offset;
 			}
 			return;
@@ -311,7 +324,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		$this->objects[$offset] = $value;
-		if(!in_array($offset, $this->addedKeys))
+		if(false === $this->findKeyIndex($this->addedKeys, $offset))
 			$this->addedKeys[] = $offset;
 
 		if(null === $this->count)
@@ -324,21 +337,46 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 	{
 		if($this->offsetExists($key)) {
 			unset($this->objects[$key]);
-			unset($this->keys[array_search($key, $this->keys)]);
+			$trackedKey = $key;
+			$keyIndex = $this->findKeyIndex($this->keys, $key);
+			if(false !== $keyIndex) {
+				$trackedKey = $this->keys[$keyIndex];
+				unset($this->keys[$keyIndex]);
+			}
 
-			if(in_array($key, $this->addedKeys)) {
-				unset($this->addedKeys[$key]);
+			if(false !== $this->findKeyIndex($this->addedKeys, $trackedKey)) {
+				$addedKeyIndex = $this->findKeyIndex($this->addedKeys, $trackedKey);
+				if(false !== $addedKeyIndex)
+					unset($this->addedKeys[$addedKeyIndex]);
 			} else {
-				if(!in_array($key, $this->removedKeys))
-					$this->removedKeys[] = $key;
+				if(false === $this->findKeyIndex($this->removedKeys, $trackedKey))
+					$this->removedKeys[] = $trackedKey;
 			}
 			$this->count--;
 
-			if(in_array($key, $this->modifiedKeys))
-				unset($this->modifiedKeys[$key]);
+			if(false !== $this->findKeyIndex($this->modifiedKeys, $trackedKey)) {
+				$modifiedKeyIndex = $this->findKeyIndex($this->modifiedKeys, $trackedKey);
+				if(false !== $modifiedKeyIndex)
+					unset($this->modifiedKeys[$modifiedKeyIndex]);
+			}
 
 			$this->keys = array_values($this->keys); // re-index
+			$this->addedKeys = array_values($this->addedKeys);
+			$this->modifiedKeys = array_values($this->modifiedKeys);
 		}
+	}
+
+	private function findKeyIndex(array $keys, mixed $key): int|string|false
+	{
+		foreach($keys as $index => $trackedKey) {
+			if($trackedKey === $key)
+				return $index;
+
+			if((is_int($trackedKey) || is_string($trackedKey)) && (is_int($key) || is_string($key)) && (string)$trackedKey === (string)$key)
+				return $index;
+		}
+
+		return false;
 	}
 
 	public function unsetAll(bool $keepObjects = true): int
@@ -347,7 +385,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			$this->cacheAll();
 
 		$count = count($this->addedKeys) + count($this->modifiedKeys) + count($this->keys);
-		$this->removedKeys += $this->addedKeys + $this->modifiedKeys + $this->keys;
+		$removedKeys = array_merge($this->removedKeys, $this->modifiedKeys, $this->keys);
+		$this->removedKeys = array_values(array_unique($removedKeys));
 
 		$this->addedKeys = $this->modifiedKeys = $this->keys = [];
 		if(!$keepObjects)
