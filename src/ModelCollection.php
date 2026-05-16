@@ -186,7 +186,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			if(empty($rs)) {
 				return [null, null];
 			} else {
-				[$key, $object] = $this->hydrator->fetch($rs, $this->database);
+				[$key, $object] = $this->getHydrator()->fetch($rs, $this->database);
 
 				if($this->cache) {
 					$this->keys[$index] = $key;
@@ -198,6 +198,33 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		}
 
 		return [null, null];
+	}
+
+	private function getHydrator(): Hydrator
+	{
+		return $this->hydrator ??= Hydrator::getHydrator($this->className);
+	}
+
+	private function fetchUntilKey(mixed $key): mixed
+	{
+		$index = max($this->index, $this->offset);
+		while(!$this->exhausted) {
+			[$currentKey, $object] = $this->fetch($index);
+			if($object === null) {
+				$this->exhausted = true;
+				if($this->autoClose && isset($this->statement))
+					$this->statement->closeCursor();
+
+				return null;
+			}
+
+			if($currentKey == $key)
+				return $object;
+
+			$index++;
+		}
+
+		return null;
 	}
 
 	private function cacheAll(): void
@@ -289,20 +316,8 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 			[, $object] = $this->fetch($key-1);
 			return $object;
 		} else {
-			if(!$this->exhausted) {
-				$count = count($this);
-				for(
-					$i = (($this->isList && is_int($key) && $key>=$count)? $count : $this->offset);
-					$i <= (($this->isList && is_int($key)) ? $key : $this->limit ?? $count ?? 0);
-					$i++
-				) {
-					[$k,] = $this->fetch($i);
-					if($k == $key)
-						break;
-				}
-
-				return $this->objects[$key] ?? null;
-			}
+			if(!$this->exhausted)
+				return $this->fetchUntilKey($key);
 		}
 
 		return null;
@@ -385,22 +400,21 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		return false;
 	}
 
-	private function uniqueKeys(array ...$keySets): array
+	private function uniqueKeys(iterable ...$keySets): \Generator
 	{
 		$keys = [];
 		foreach($keySets as $keySet) {
 			foreach($keySet as $key) {
-				if(false === $this->findKeyIndex($keys, $key))
+				if(false === $this->findKeyIndex($keys, $key)) {
 					$keys[] = $key;
+					yield $key;
+				}
 			}
 		}
-
-		return $keys;
 	}
 
-	private function getCachedModifiedKeys(): array
+	private function getCachedModifiedKeys(): \Generator
 	{
-		$keys = [];
 		foreach($this->objects as $key => $object) {
 			if(
 				$object instanceof Model
@@ -408,11 +422,17 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 				&& false === $this->findKeyIndex($this->addedKeys, $key)
 				&& false === $this->findKeyIndex($this->removedKeys, $key)
 			) {
-				$keys[] = $key;
+				yield $key;
 			}
 		}
+	}
 
-		return $keys;
+	private function persistedKeys(): \Generator
+	{
+		foreach($this->keys as $key) {
+			if(false === $this->findKeyIndex($this->addedKeys, $key))
+				yield $key;
+		}
 	}
 
 	/**
@@ -510,12 +530,11 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(!$this->exhausted && $this->autoExecute)
 			$this->cacheAll();
 
-		$persistedKeys = array_filter(
-			$this->keys,
-			fn($key): bool => false === $this->findKeyIndex($this->addedKeys, $key)
-		);
-		$affectedKeys = $this->uniqueKeys($this->addedKeys, $this->modifiedKeys, $persistedKeys);
-		$this->removedKeys = $this->uniqueKeys($this->removedKeys, $this->modifiedKeys, $persistedKeys);
+		$affectedCount = 0;
+		foreach($this->uniqueKeys($this->addedKeys, $this->modifiedKeys, $this->persistedKeys()) as $_)
+			$affectedCount++;
+
+		$this->removedKeys = iterator_to_array($this->uniqueKeys($this->removedKeys, $this->modifiedKeys, $this->persistedKeys()), false);
 		foreach($this->removedKeys as $key) {
 			if(isset($this->objects[$key]))
 				$this->removedObjects[$key] = $this->objects[$key];
@@ -526,7 +545,7 @@ class ModelCollection implements Collection, \Iterator, \ArrayAccess, \Countable
 		if(!$keepObjects)
 			$this->objects = [];
 
-		return count($affectedKeys);
+		return $affectedCount;
 	}
 
 	/*

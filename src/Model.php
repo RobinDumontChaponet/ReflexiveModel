@@ -21,6 +21,7 @@ abstract class Model implements SCRUDInterface
 	protected static array $setters = [];
 	protected static array $lengths = [];
 	protected static array $attributedProperties = [];
+	protected static array $propertyReflections = [];
 	// public bool $autoInitializeProperties = true;
 
 	public static array $superType = [];
@@ -93,14 +94,13 @@ abstract class Model implements SCRUDInterface
 
 	public function __construct()
 	{
-		static::initModelAttributes();
 		$this->reflexive_subType = $this::class;
 	}
 
 	#[\Override]
 	public function getModelId(): int|string|array
 	{
-		$schema = Schema::initFromAttributes($this::class);
+		$schema = Schema::getSchema($this::class);
 		if($schema)
 			return $schema->getModelId($this);
 
@@ -109,7 +109,7 @@ abstract class Model implements SCRUDInterface
 	#[\Override]
 	public function getModelIdString(): ?string
 	{
-		$schema = Schema::initFromAttributes($this::class);
+		$schema = Schema::getSchema($this::class);
 		if($schema)
 			return ''.$schema->getModelIdString($this);
 
@@ -118,7 +118,7 @@ abstract class Model implements SCRUDInterface
 
 	public function setModelId(int|string ...$id): void
 	{
-		$schema = Schema::initFromAttributes($this::class);
+		$schema = Schema::getSchema($this::class);
 		if($schema) {
 			$uidProperties = $schema->getUIdPropertyName();
 			$uidProperties = is_array($uidProperties) ? array_values($uidProperties) : [$uidProperties];
@@ -133,10 +133,10 @@ abstract class Model implements SCRUDInterface
 		}
 	}
 
-	public function __wakeup()
-	{
-		static::initModelAttributes();
-	}
+	// public function __wakeup()
+	// {
+	// 	static::initModelAttributes();
+	// }
 
 	public function __toString()
 	{
@@ -157,6 +157,8 @@ abstract class Model implements SCRUDInterface
 
 	private function &getValue(string $name): mixed
 	{
+		static::initModelAttributes();
+
 		if(isset(static::$attributedProperties[static::class][$name])) {
 			$value =& $this->_getValue(static::class, $name);
 			return $value;
@@ -170,7 +172,7 @@ abstract class Model implements SCRUDInterface
 	private function &_getValue(string $className, string $name): mixed
 	{
 		if(property_exists($className, $name) && !isset($this->{$name})) {
-			$propertyReflection = new ReflectionProperty($className, $name);
+			$propertyReflection = self::$propertyReflections[$className][$name] ??= new ReflectionProperty($className, $name);
 			$type = $propertyReflection->getType();
 			if($type instanceof ReflectionNamedType && $type->getName() == Collection::class)
 				$this->{$name} = new ModelCollection(static::class);
@@ -198,6 +200,8 @@ abstract class Model implements SCRUDInterface
 	}
 	private function setValue(string $name, mixed $value): void
 	{
+		static::initModelAttributes();
+
 		$className = static::class;
 		if(!isset(static::$attributedProperties[$className][$name]) && isset(static::$superType[static::class], static::$attributedProperties[static::$superType[static::class]][$name])) {
 			$className = static::$superType[static::class];
@@ -219,11 +223,15 @@ abstract class Model implements SCRUDInterface
 
 	public function __isset($name)
 	{
+		static::initModelAttributes();
+
 		return isset(static::$attributedProperties[static::class][$name]) && isset($this->{$name});
 	}
 
 	public function __call(string $name, array $arguments): mixed
 	{
+		static::initModelAttributes();
+
 		if(isset(static::$getters[static::class][$name])) { // auto-getter
 			return $this->getValue(static::$getters[static::class][$name]);
 		} elseif(isset(static::$setters[static::class][$name])) { // auto-setter
@@ -336,11 +344,11 @@ abstract class Model implements SCRUDInterface
 			&& ($superTypeSchema = Schema::getSchema($superType))
 		) {
 			$columns = array_merge(
-				$schema->getColumnNames(),
-				$superTypeSchema->getColumnNames()
+				$schema->getHydratableColumnNames(),
+				$superTypeSchema->getHydratableColumnNames()
 			);
 		} else {
-			$columns = $schema->getColumnNames();
+			$columns = $schema->getHydratableColumnNames();
 		}
 
 		$prefix = $alias ? "`$alias`." : '';

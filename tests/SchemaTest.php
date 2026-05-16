@@ -52,6 +52,17 @@ final class SchemaTestPost extends Model
 	protected SchemaTestAuthor $author;
 }
 
+#[Table('schema_test_comments')]
+final class SchemaTestComment extends Model
+{
+	use ModelId;
+
+	#[Property]
+	#[Column('author_id')]
+	#[Reference(Cardinality::OneToMany, type: SchemaTestAuthor::class, columnName: 'author_id')]
+	protected SchemaTestAuthor $author;
+}
+
 final class SchemaTest extends TestCase
 {
 	public function testSchemaInfersColumnsFromModelAttributes(): void
@@ -80,5 +91,18 @@ final class SchemaTest extends TestCase
 		$this->assertSame(SchemaTestAuthor::class, $schema->getReferenceType('author'));
 		$this->assertSame('author_id', $schema->getReferenceColumnName('author'));
 		$this->assertFalse($schema->hasColumn('author'));
+		$this->assertNotContains('author_id', $schema->getColumnNames(false));
+		$this->assertContains('author_id', $schema->getHydratableColumnNames(false));
+	}
+
+	public function testReferenceColumnRemainsHydratableAfterColumnMetadataIsUnset(): void
+	{
+		// Verifies reference foreign-key columns leave scalar columns but stay in hydration columns.
+		$schema = Schema::getSchema(SchemaTestComment::class);
+
+		$this->assertTrue($schema->hasReference('author'));
+		$this->assertFalse($schema->hasColumn('author'));
+		$this->assertNotContains('author_id', $schema->getColumnNames(false));
+		$this->assertContains('author_id', $schema->getHydratableColumnNames(false));
 	}
 }

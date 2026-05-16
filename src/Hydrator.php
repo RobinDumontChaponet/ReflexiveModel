@@ -16,8 +16,11 @@ class Hydrator
 
 	protected string $modelClassName;
 	protected Schema $schema;
+	protected ReflectionClass $classReflection;
 
 	protected array $models = [];
+	protected array $propertyReflections = [];
+	protected array $propertyTypes = [];
 
 	// global caches ?
 	public static bool $useInternalCache = true;
@@ -60,6 +63,7 @@ class Hydrator
 	{
 		$this->modelClassName = $modelClassName;
 		$this->schema = Schema::getSchema($modelClassName);
+		$this->classReflection = new ReflectionClass($modelClassName);
 
 		if(!isset($this->schema))
 			throw new \Exception('Could not infer schema from Model "'.$modelClassName.'" attributes.');
@@ -104,10 +108,22 @@ class Hydrator
 	}
 
 
+	private function getPropertyReflection(string $propertyName): \ReflectionProperty
+	{
+		return $this->propertyReflections[$propertyName] ??= $this->classReflection->getProperty($propertyName);
+	}
+
+	private function getPropertyTypes(\ReflectionProperty $propertyReflection): array
+	{
+		return $this->propertyTypes[$propertyReflection->getName()] ??= (
+			($type = $propertyReflection->getType())
+				? ($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type])
+				: []
+		);
+	}
+
 	private function _fetch(object &$object, object $rs, ?\PDO $database): void
 	{
-		$classReflection = new ReflectionClass($this->modelClassName);
-
 		$statement = null;
 		if($rs instanceof ModelStatement) {
 			$statement = $rs->getQuery();
@@ -133,11 +149,11 @@ class Hydrator
 
 		foreach($columns as $propertyName => $column) {
 			if(isset($column['columnName'])) {
-				$propertyReflection = $classReflection->getProperty($propertyName);
+				$propertyReflection = $this->getPropertyReflection($propertyName);
 				// $propertyReflection->setAccessible(true);
 
-				if($type = $propertyReflection->getType()) {
-					if($types = $type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType ? $type->getTypes() : [$type]) {
+				if($propertyReflection->getType()) {
+					if($types = $this->getPropertyTypes($propertyReflection)) {
 						foreach($types as $type) {
 							if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
 								if($type->allowsNull()) { // is nullable
@@ -204,7 +220,7 @@ class Hydrator
 				if(isset($superType) && $superType == $reference['type'])
 					continue;
 
-				$propertyReflection = $classReflection->getProperty($propertyName);
+				$propertyReflection = $this->getPropertyReflection($propertyName);
 
 				switch($reference['cardinality']) {
 					case Cardinality::OneToOne:
@@ -215,8 +231,7 @@ class Hydrator
 								: $this->makeGhost(
 									$reference['type'],
 									$statement,
-									$database,
-									$classReflection
+									$database
 								)
 						);
 					break;
@@ -239,8 +254,7 @@ class Hydrator
 									: $this->makeGhost(
 										$reference['type'],
 										$statement,
-										$database,
-										$classReflection
+										$database
 									)
 							);
 						}
@@ -299,16 +313,13 @@ class Hydrator
 			return [$id, $object];
 
 		if(is_a($this->modelClassName, Model::class, true)) { // is model
-			$this->modelClassName::initModelAttributes();
-			$classReflection = new ReflectionClass($this->modelClassName);
-
 			if($lazy) { // lazy
-				$object = $classReflection->newLazyGhost(function (object $ghost) use ($rs, $database): void {
+				$object = $this->classReflection->newLazyGhost(function (object $ghost) use ($rs, $database): void {
 					$this->_fetch($ghost, $rs, $database, true);
 					(new \ReflectionObject($ghost))->markLazyObjectAsInitialized($ghost);
 				});
 			} else { // eager
-				$object = $classReflection->newInstanceWithoutConstructor();
+				$object = $this->classReflection->newInstanceWithoutConstructor();
 				$this->_fetch($object, $rs, $database, false);
 			}
 

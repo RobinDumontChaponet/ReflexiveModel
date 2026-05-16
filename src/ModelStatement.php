@@ -17,6 +17,7 @@ abstract class ModelStatement
 	protected ?string $groupedBy = null; // columnName to group by if any
 
 	protected array $referencedStatements = [];
+	protected bool $initialized = false;
 
 	// global caches ?
 	public static bool $useInternalCache = true;
@@ -31,10 +32,14 @@ abstract class ModelStatement
 
 	protected function init(): void
 	{
+		if($this->initialized)
+			return;
+
 		$schema = $this->schema ?? Schema::getSchema($this->modelClassName);
 
 		$this->schema = $schema;
 		$this->query->from($this->schema->getTableName());
+		$this->initialized = true;
 
 		// if(($superType = $this->schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
 		// 	$this->query->join(
@@ -60,6 +65,7 @@ abstract class ModelStatement
 	public function from(Schema $schema): static
 	{
 		$this->schema = $schema;
+		$this->initialized = false;
 		return $this;
 	}
 

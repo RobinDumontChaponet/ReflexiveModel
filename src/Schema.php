@@ -36,6 +36,10 @@ class Schema implements \JsonSerializable
 	 * $columnNames[string propertyName] = string columnName;
 	 */
 	protected array $columnNames = [];
+	/*
+	 * $hydratableColumnNames[string propertyName] = string columnName;
+	 */
+	protected array $hydratableColumnNames = [];
 	protected string|array|null $uIdPropertyName = null;
 	/*
 	 * $references[string propertyName] = [
@@ -48,6 +52,8 @@ class Schema implements \JsonSerializable
 	protected bool $enum = false;
 
 	protected bool $complete = false;
+	protected array $derivedCache = [];
+	protected array $modelIdProperties = [];
 
 	// global caches ?
 	public static bool $useInternalCache = true;
@@ -86,6 +92,11 @@ class Schema implements \JsonSerializable
 	)
 	{}
 
+	private function clearDerivedCache(): void
+	{
+		$this->derivedCache = [];
+	}
+
 	public function hasColumn(int|string $key): bool
 	{
 		return isset($this->columns[$key]);
@@ -93,20 +104,66 @@ class Schema implements \JsonSerializable
 	public function unsetColumn(int|string $key): void
 	{
 		unset($this->columns[$key]);
+		unset($this->columnNames[$key]);
+		unset($this->hydratableColumnNames[$key]);
+		$this->clearDerivedCache();
 		// unset($this->columns[$key]['columnName']);
+	}
+
+	private function convertColumnToReference(int|string $key): void
+	{
+		if(!$this->hasColumn($key) || !$this->hasReference($key))
+			return;
+
+		$this->setReferenceColumnName($key, $this->getColumnName($key));
+
+		if(is_null($this->isReferenceNullable($key)))
+			$this->setReferenceNullable($key, $this->isColumnNullable($key));
+
+		unset($this->columns[$key]);
+		unset($this->columnNames[$key]);
+		$this->clearDerivedCache();
 	}
 
 	public function getColumnNames(bool $prefixed = true): array
 	{
-		if($prefixed)
-			return array_values(array_map(fn($value): string => $this->tableName.'.'.$value, $this->columnNames));
-		else
-			return array_values($this->columnNames);
+		$cacheKey = $prefixed ? 'columnNames.prefixed' : 'columnNames.raw';
+		if(!isset($this->derivedCache[$cacheKey])) {
+			if($prefixed) {
+				$names = [];
+				foreach($this->columnNames as $value) {
+					$names[] = $this->tableName.'.'.$value;
+				}
+				$this->derivedCache[$cacheKey] = $names;
+			} else {
+				$this->derivedCache[$cacheKey] = array_values($this->columnNames);
+			}
+		}
+
+		return $this->derivedCache[$cacheKey];
 	}
 
 	public function getPropertyNames(): array
 	{
-		return array_keys($this->columnNames);
+		return $this->derivedCache['propertyNames'] ??= array_keys($this->columnNames);
+	}
+
+	public function getHydratableColumnNames(bool $prefixed = true): array
+	{
+		$cacheKey = $prefixed ? 'hydratableColumnNames.prefixed' : 'hydratableColumnNames.raw';
+		if(!isset($this->derivedCache[$cacheKey])) {
+			if($prefixed) {
+				$names = [];
+				foreach($this->hydratableColumnNames as $value) {
+					$names[] = $this->tableName.'.'.$value;
+				}
+				$this->derivedCache[$cacheKey] = $names;
+			} else {
+				$this->derivedCache[$cacheKey] = array_values($this->hydratableColumnNames);
+			}
+		}
+
+		return $this->derivedCache[$cacheKey];
 	}
 
 	public function getColumnName(int|string $key): ?string
@@ -120,10 +177,14 @@ class Schema implements \JsonSerializable
 	{
 		if($this->hasColumn($key)) {
 			$this->columns[$key]['columnName'] = $name;
+			$this->columnNames[$key] = $name;
+			$this->hydratableColumnNames[$key] = $name;
 		} else {
 			$this->columns[$key] = ['columnName' => $name];
 			$this->columnNames[$key] = $name;
+			$this->hydratableColumnNames[$key] = $name;
 		}
+		$this->clearDerivedCache();
 	}
 
 	public function getColumnExtra(int|string $key): ?Query\ColumnExtra
@@ -159,19 +220,24 @@ class Schema implements \JsonSerializable
 		if(empty($this->uIdPropertyName))
 			return null;
 
-		if(is_array($this->uIdPropertyName))
-			return array_map(fn($propertyName): ?string => $this->getColumnName($propertyName) ?? $this->getReferenceColumnName($propertyName), $this->uIdPropertyName);
-		else {
-			return [$this->getColumnName($this->uIdPropertyName) ?? $this->getReferenceColumnName($this->uIdPropertyName)];
+		if(!isset($this->derivedCache['uIdColumnNames'])) {
+			$propertyNames = is_array($this->uIdPropertyName) ? $this->uIdPropertyName : [$this->uIdPropertyName];
+			$columnNames = [];
+			foreach($propertyNames as $propertyName) {
+				$columnNames[] = $this->getColumnName($propertyName) ?? $this->getReferenceColumnName($propertyName);
+			}
+			$this->derivedCache['uIdColumnNames'] = $columnNames;
 		}
+
+		return $this->derivedCache['uIdColumnNames'];
 	}
 	public function getUIdColumnNameString(): ?string
 	{
-		$name = $this->getUIdColumnName();
-		if(is_array($name))
-			return implode(', ', $name);
-
-		return $name;
+		return $this->derivedCache['uIdColumnNameString'] ??= (
+			($name = $this->getUIdColumnName()) !== null
+				? implode(', ', $name)
+				: null
+		);
 	}
 	public function getUIdPropertyName(): string|array|null
 	{
@@ -183,6 +249,7 @@ class Schema implements \JsonSerializable
 			$name = $name[0];
 
 		$this->uIdPropertyName = $name;
+		$this->clearDerivedCache();
 	}
 	public function addUIdPropertyName(string ...$name): void
 	{
@@ -190,6 +257,12 @@ class Schema implements \JsonSerializable
 			$this->uIdPropertyName = [];
 
 		$this->uIdPropertyName += array_merge($this->uIdPropertyName, $name);
+		$this->clearDerivedCache();
+	}
+
+	private function getModelIdProperty(Model $model, string $propertyName): \ReflectionProperty
+	{
+		return $this->modelIdProperties[$model::class][$propertyName] ??= (new ReflectionClass($model::class))->getProperty($propertyName);
 	}
 
 	public function getModelId(Model $model): int|string|array
@@ -198,29 +271,28 @@ class Schema implements \JsonSerializable
 		if(empty($propertyNames))
 			return -1;
 
-		$classReflection = new ReflectionClass($model::class);
 		if(is_array($propertyNames)) {
 			$id = [];
 			foreach($propertyNames as $propertyName) {
-				$id[$propertyName] = $classReflection->getProperty($propertyName)->getValue($model);
+				$id[$propertyName] = $this->getModelIdProperty($model, $propertyName)->getValue($model);
 			}
 
 			return $id;
 		}
 
-		return $classReflection->getProperty($propertyNames);
+		return $this->getModelIdProperty($model, $propertyNames)->getValue($model);
 	}
 	public function getModelIdString(Model $model): int|string|array
 	{
 		$id = $this->getModelId($model);
 		if(is_array($id)) {
-			$str = '';
+			$parts = [];
 			foreach($id as $value) {
 				if(is_object($value)) {
 					if(enum_exists($value::class))
-						$str.= $value->name;
+						$parts[] = $value->name;
 					else {
-						$str.= match($value::class) {
+						$parts[] = match($value::class) {
 							'stdClass' => json_encode($value),
 							'DateTime' => $value->format('Y-m-d H:i:s'),
 							'Reflexive\Model\Model' => $value->getModelId(),
@@ -228,18 +300,16 @@ class Schema implements \JsonSerializable
 						};
 					}
 				} else
-					$str.= $value;
-				$str.= ', ';
+					$parts[] = $value;
 			}
-			return rtrim($str, ', ');
+			return implode(', ', $parts);
 		}
 
 		return $id;
 	}
 	public function setModelId(Model $model, string $propertyName, int|string $value): void
 	{
-		$classReflection = new ReflectionClass($model::class);
-		$classReflection?->getProperty($propertyName)?->setValue($model, $value);
+		$this->getModelIdProperty($model, $propertyName)->setValue($model, $value);
 	}
 
 	public function hasUId(): bool
@@ -271,24 +341,36 @@ class Schema implements \JsonSerializable
 
 	public function getUIdColumnType(): string|array|null
 	{
-		if(is_array($this->uIdPropertyName)) {
-			$fn = fn($propertyName): array|null|string => $this->getColumnTypeString($propertyName);
+		if(isset($this->derivedCache['uIdColumnType']))
+			return $this->derivedCache['uIdColumnType'];
 
-			return array_map(function($item) use($fn){
-				return is_array($item) ? array_map($fn, $item) : $fn($item);
-			}, $this->uIdPropertyName);
+		if(is_array($this->uIdPropertyName)) {
+			$types = [];
+			foreach($this->uIdPropertyName as $item) {
+				if(is_array($item)) {
+					$itemTypes = [];
+					foreach($item as $propertyName) {
+						$itemTypes[] = $this->getColumnTypeString($propertyName);
+					}
+					$types[] = $itemTypes;
+				} else {
+					$types[] = $this->getColumnTypeString($item);
+				}
+			}
+
+			return $this->derivedCache['uIdColumnType'] = $types;
 		} elseif(null !== $this->uIdPropertyName)
-			return $this->getColumnTypeString($this->uIdPropertyName);
+			return $this->derivedCache['uIdColumnType'] = $this->getColumnTypeString($this->uIdPropertyName);
 
 		return null;
 	}
 	public function getUIdColumnTypeString(): ?string
 	{
-		$type = $this->getUIdColumnType();
-		if(is_array($type))
-			return implode(', ', $type);
-
-		return $type;
+		return $this->derivedCache['uIdColumnTypeString'] ??= (
+			($type = $this->getUIdColumnType()) !== null
+				? (is_array($type) ? implode(', ', $type) : $type)
+				: null
+		);
 	}
 
 	public function hasReference(int|string $key): bool
@@ -328,6 +410,9 @@ class Schema implements \JsonSerializable
 			$this->references[$key]['columnName'] = $name;
 		else
 			$this->references[$key] = ['columnName' => $name];
+
+		$this->hydratableColumnNames[$key] = $name;
+		$this->clearDerivedCache();
 	}
 
 	public function getReferenceForeignColumnName(int|string $key): ?string
@@ -403,6 +488,8 @@ class Schema implements \JsonSerializable
 			$this->references[$key]['type'] = $type;
 		else
 			$this->references[$key] = ['type' => $type];
+
+		$this->clearDerivedCache();
 	}
 
 	public function isReferenceNullable(int|string $key): ?bool
@@ -456,7 +543,7 @@ class Schema implements \JsonSerializable
 		if($this->hasColumn($key))
 			return $this->columns[$key]['type'] ?? null;
 		elseif($this->hasReference($key)) {
-			return self::initFromAttributes($this->references[$key]['type'])->getUIdColumnType();
+			return self::getSchema($this->references[$key]['type'])?->getUIdColumnType();
 		}
 
 		return null;
@@ -475,6 +562,8 @@ class Schema implements \JsonSerializable
 			$this->columns[$key]['type'] = $type;
 		else
 			$this->columns[$key] = ['type' => $type];
+
+		$this->clearDerivedCache();
 	}
 
 	public function isColumnNullable(int|string $key): ?bool
@@ -1089,10 +1178,7 @@ class Schema implements \JsonSerializable
 
 					foreach(array_keys($schema->getReferences()) as $key) {
 						if($schema->hasColumn($key)) {
-							$schema->setReferenceColumnName($key, $schema->getColumnName($key));
-
-							if(is_null($schema->isReferenceNullable($key)))
-								$schema->setReferenceNullable($key, $schema->isColumnNullable($key));
+							$schema->convertColumnToReference($key);
 
 // 							if($schema->isReferenceInverse($key)) {
 // 								$columnName = $schema->getColumnName($key);
@@ -1102,8 +1188,6 @@ class Schema implements \JsonSerializable
 // 								$schema->setReferenceCardinality($columnName, $schema->getReferenceCardinality($key));
 // 								$schema->setReferenceNullable($columnName, $schema->isReferenceNullable($key));
 // 							}
-
-							$schema->unsetColumn($key);
 						}
 					}
 

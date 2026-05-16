@@ -16,9 +16,9 @@ class Read extends PullOne
 		if($schema->isSuperType()) {
 			$this->query->setColumns(array_merge($schema->getUIdColumnName(), ['reflexive_subType']));
 		} elseif(($superType = $schema->getSuperType()) !== null && ($superTypeSchema = Schema::getSchema($superType))) { // is subType of $superType
-			$this->query->setColumns(array_merge($schema->getColumnNames(), $superTypeSchema->getColumnNames()));
+			$this->query->setColumns(array_merge($schema->getHydratableColumnNames(), $superTypeSchema->getHydratableColumnNames()));
 		} else {
-			$this->query->setColumns($schema->getColumnNames());
+			$this->query->setColumns($schema->getHydratableColumnNames());
 		}
 	}
 
