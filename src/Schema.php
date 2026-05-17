@@ -1335,6 +1335,7 @@ class Schema implements \JsonSerializable
 	{
 		$query = new \Reflexive\Query\CreateTable($this->getTableName());
 
+		$addedColumnNames = [];
 		foreach($this->columnNames as $propertyName => $columnName) {
 			$query->addColumn(
 				name: $columnName,
@@ -1343,6 +1344,23 @@ class Schema implements \JsonSerializable
 				defaultValue: $this->getColumnDefaultValue($propertyName),
 				extra: $this->isColumnAutoIncremented($propertyName) ? Query\ColumnExtra::autoIncrement : ($this->hasColumnExtra($propertyName) ? $this->getColumnExtra($propertyName) : null)
 			);
+			$addedColumnNames[$columnName] = true;
+		}
+
+		foreach(array_keys($this->references) as $propertyName) {
+			if($this->getReferenceCardinality($propertyName) === Cardinality::ManyToMany)
+				continue;
+
+			$columnName = $this->getReferenceColumnName($propertyName);
+			if(isset($addedColumnNames[$columnName]))
+				continue;
+
+			$query->addColumn(
+				name: $columnName,
+				type: $this->getColumnTypeString($propertyName),
+				nullable: $this->isReferenceNullable($propertyName),
+			);
+			$addedColumnNames[$columnName] = true;
 		}
 
 		foreach($this->getUIdColumnName() as $columnName) {

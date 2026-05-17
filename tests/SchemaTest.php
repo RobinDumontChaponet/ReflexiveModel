@@ -105,4 +105,13 @@ final class SchemaTest extends TestCase
 		$this->assertNotContains('author_id', $schema->getColumnNames(false));
 		$this->assertContains('author_id', $schema->getHydratableColumnNames(false));
 	}
+
+	public function testDumpSqlTableIncludesReferenceColumns(): void
+	{
+		// Verifies table creation includes FK columns that are no longer scalar columns.
+		$sql = Schema::getSchema(SchemaTestComment::class)->dumpSQLTable(SchemaTestComment::class);
+
+		$this->assertStringContainsString('`author_id` BIGINT(20) UNSIGNED NOT NULL', $sql);
+		$this->assertStringContainsString('FOREIGN KEY (`author_id`)', $sql);
+	}
 }
