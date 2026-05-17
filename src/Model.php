@@ -42,7 +42,7 @@ abstract class Model implements SCRUDInterface
 
 	public function getModifiedPropertiesNames(): array
 	{
-		return array_unique($this->modifiedProperties);
+		return array_values($this->modifiedProperties);
 	}
 
 	public function hasModifiedProperties(): bool
@@ -188,7 +188,7 @@ abstract class Model implements SCRUDInterface
 		if(isset(static::$attributedProperties[$className][$name])) {
 			if(static::$attributedProperties[$className][$name]) {
 				if(($this->{$name} ?? null) !== $value)
-					$this->modifiedProperties[] = $name;
+					$this->modifiedProperties[$name] = $name;
 
 				$this->{$name} = $value;
 			} else {
@@ -323,7 +323,7 @@ abstract class Model implements SCRUDInterface
 		return new ModelCollection(
 			static::class,
 			$statement,
-			Hydrator::getHydrator(static::class),
+			null,
 			$limit,
 			$offset,
 			$database

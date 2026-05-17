@@ -6,6 +6,7 @@ namespace Reflexive\Model;
 
 use Reflexive\Core\Comparator;
 use ReflectionClass;
+use ReflectionNamedType;
 use ReflectionUnionType;
 use ReflectionIntersectionType;
 use Psr\SimpleCache;
@@ -21,6 +22,8 @@ class Hydrator
 	protected array $models = [];
 	protected array $propertyReflections = [];
 	protected array $propertyTypes = [];
+	protected ?array $columnPlan = null;
+	protected ?array $referencePlan = null;
 
 	// global caches ?
 	public static bool $useInternalCache = true;
@@ -30,9 +33,30 @@ class Hydrator
 	// stats
 	public static int $fetchCount = 0;
 
+	private function normalizeId(int|string|array $id): string
+	{
+		if(is_array($id)) {
+			$parts = [];
+			foreach($id as $value) {
+				$parts[] = $this->normalizeId($value);
+			}
+
+			return implode(', ', $parts);
+		}
+
+		return (string)$id;
+	}
+
+	private function getCacheKey(int|string|array $id): string
+	{
+		return 'model_'.$this->modelClassName.'_'.$this->normalizeId($id);
+	}
+
 	protected function _getModel(int|string|array $id): ?Model
 	{
-		return $this->models[$id] ?? static::$cache?->get('model_'.$this->modelClassName.'_'.$id) ?? null;
+		$id = $this->normalizeId($id);
+
+		return $this->models[$id] ?? static::$cache?->get($this->getCacheKey($id)) ?? null;
 	}
 	public function getFromCache(int|string|array $id): ?Model
 	{
@@ -41,22 +65,26 @@ class Hydrator
 
 	protected function _hasModel(int|string $id): bool
 	{
+		$id = $this->normalizeId($id);
+
 		if(static::$useInternalCache) {
 			return isset($this->models[$id]);
 		}
 
-		return static::$cache?->has('model_'.$this->modelClassName.'_'.$id) ?? false;
+		return static::$cache?->has($this->getCacheKey($id)) ?? false;
 	}
 
-	protected function _setModel(Model $model): void
+	protected function _setModel(int|string|array $id, Model $model): void
 	{
-		if(is_string($model->getModelId()) || empty($model->getModelId()) || $model->getModelId()<0 || enum_exists($model::class))
+		$id = $this->normalizeId($id);
+		if($id === '' || enum_exists($model::class))
 			return;
 
 		if(static::$useInternalCache)
-			$this->models[$model->getModelIdString()] = $model;
+			$this->models[$id] = $model;
 
-		static::$cache?->set('model_'.$model::class.'_'.$model->getModelIdString(), $model, static::$cacheTTL);
+		if(static::$cache !== null && !(new \ReflectionObject($model))->isUninitializedLazyObject($model))
+			static::$cache->set($this->getCacheKey($id), $model, static::$cacheTTL);
 	}
 
 	private function __construct(string $modelClassName)
@@ -69,28 +97,55 @@ class Hydrator
 			throw new \Exception('Could not infer schema from Model "'.$modelClassName.'" attributes.');
 	}
 
-	private function makeGhost(string $className, object $rs, $database): object {
-		$classReflection = new ReflectionClass($className);
-		return $classReflection->newLazyProxy(function (object $_proxy) use ($rs, $database, $className) {
-			$statement = null;
-			if($rs instanceof ModelStatement) {
-				$statement = $rs->getQuery();
-			}
-			if($rs instanceof \Reflexive\Query\Composed) {
-				$statement = $rs;
-			}
-			if($statement instanceof \Reflexive\Query\Composed) {
-				$statement = $statement->prepare($database);
-				$statement->execute();
-			}
+	private function makeGhost(string $className, string $columnName, mixed $id, ?\PDO $database): object
+	{
+		$hydrator = self::getHydrator($className);
+		$ghost = $hydrator->classReflection->newLazyGhost(function (object $ghost) use ($className, $columnName, $id, $database, $hydrator): void {
+			$statement = $className::read()
+				->where(Condition::EQUAL($columnName, $id))
+				->getQuery()
+				->prepare($database);
 
-			if($statement) {
-				$rs = $statement->fetch(\PDO::FETCH_OBJ);
+			$statement->execute();
+			if($rs = $statement->fetch(\PDO::FETCH_OBJ)) {
+				$hydrator->_fetch($ghost, $rs, $database);
+				(new \ReflectionObject($ghost))->markLazyObjectAsInitialized($ghost);
+			} else {
+				throw new \LogicException('Could not lazy-load "'.$className.'" with "'.$columnName.'" = "'.$id.'".');
 			}
-
-			return self::getHydrator($className)->fetch($rs, $database, true)[1];
-			// (new \ReflectionObject($ghost))->markLazyObjectAsInitialized($ghost);
 		});
+
+		if($columnName === $hydrator->schema->getUIdColumnNameString())
+			$hydrator->_setModel($id, $ghost);
+
+		return $ghost;
+	}
+
+	private function makeProxy(string $className, string $columnName, mixed $id, ?\PDO $database): object
+	{
+		return self::getHydrator($className)->classReflection->newLazyProxy(function () use ($className, $columnName, $id, $database): object {
+			$model = $className::read()
+				->where(Condition::EQUAL($columnName, $id))
+				->execute($database);
+
+			if(!$model instanceof Model)
+				throw new \LogicException('Could not lazy-load "'.$className.'" with "'.$columnName.'" = "'.$id.'".');
+
+			return $model;
+		});
+	}
+
+	private function makeReference(string $className, Schema $schema, string $columnName, mixed $id, ?\PDO $database): ?object
+	{
+		if($schema->isSuperType()) {
+			$hydrator = self::getHydrator($className);
+			if($hydrator->classReflection->isAbstract())
+				return $className::read()->where(Condition::EQUAL($columnName, $id))->execute($database);
+
+			return $this->makeProxy($className, $columnName, $id, $database);
+		}
+
+		return $this->makeGhost($className, $columnName, $id, $database);
 	}
 
 	private static function allowsNull(?\ReflectionType $type): bool {
@@ -122,6 +177,150 @@ class Hydrator
 		);
 	}
 
+	private function getColumnPlan(): array
+	{
+		if($this->columnPlan !== null)
+			return $this->columnPlan;
+
+		$columns = $this->schema->getColumns();
+		$superType = $this->schema->getSuperType();
+		if($superType !== null) {
+			$superTypeSchema = Schema::getSchema($superType);
+			if($superTypeSchema !== null)
+				$columns+= $superTypeSchema->getColumns();
+		}
+
+		$this->columnPlan = [];
+		foreach($columns as $propertyName => $column) {
+			if(!isset($column['columnName']))
+				continue;
+
+			$propertyReflection = $this->getPropertyReflection($propertyName);
+			$this->columnPlan[] = [
+				'propertyName' => $propertyName,
+				'property' => $propertyReflection,
+				'columnName' => $column['columnName'],
+				'nullable' => $propertyReflection->getType()?->allowsNull() ?? true,
+				'types' => $this->buildTypePlan($propertyReflection, $column),
+			];
+		}
+
+		return $this->columnPlan;
+	}
+
+	private function buildTypePlan(\ReflectionProperty $propertyReflection, array $column): array
+	{
+		$types = [];
+		foreach($this->getPropertyTypes($propertyReflection) as $type) {
+			if(!$type instanceof ReflectionNamedType)
+				continue;
+
+			$typeName = $type->getName();
+			if($type->isBuiltin()) {
+				$types[] = [
+					'name' => $typeName,
+					'kind' => $typeName == 'array' && ($column['type'] ?? null) == 'json' ? 'json-array' : 'builtin',
+				];
+			} elseif(enum_exists($typeName)) {
+				$types[] = [
+					'name' => $typeName,
+					'kind' => 'enum',
+				];
+			} elseif(class_exists($typeName, true)) {
+				$types[] = [
+					'name' => $typeName,
+					'kind' => match($typeName) {
+						\DateTime::class => 'datetime',
+						'stdClass' => 'json-object',
+						default => 'object',
+					},
+				];
+			}
+		}
+
+		return $types;
+	}
+
+	private function hydrateColumn(object $object, object $rs, array $column): void
+	{
+		$propertyReflection = $column['property'];
+		$columnName = $column['columnName'];
+
+		if(!isset($rs->{$columnName}) || is_null($rs->{$columnName})) {
+			if($column['nullable']) {
+				$propertyReflection->setValue($object, null);
+				return;
+			}
+
+			throw new \TypeError('Property "'.$column['propertyName'].'" of model "'.$this->modelClassName.'" cannot take null value from column "'.$columnName.'"');
+		}
+
+		$value = $rs->{$columnName};
+		if(empty($column['types'])) {
+			$propertyReflection->setValue($object, $value);
+			return;
+		}
+
+		$typeName = $column['types'][0]['name'];
+		$hydratedValue = $value;
+		switch($column['types'][0]['kind']) {
+			case 'json-array':
+				$hydratedValue = json_decode($value, true);
+			break;
+			case 'enum':
+				$hydratedValue = constant($typeName.'::'.$value);
+			break;
+			case 'datetime':
+				$hydratedValue = new \DateTime($value);
+			break;
+			case 'json-object':
+				$hydratedValue = json_decode($value);
+			break;
+			case 'object':
+				$hydratedValue = new $typeName($value);
+			break;
+		}
+
+		$propertyReflection->setValue(
+			$object,
+			$hydratedValue
+		);
+	}
+
+	private function getReferencePlan(): array
+	{
+		if($this->referencePlan !== null)
+			return $this->referencePlan;
+
+		$references = $this->schema->getReferences();
+		$superType = $this->schema->getSuperType();
+		if($superType !== null) {
+			$superTypeSchema = Schema::getSchema($superType);
+			if($superTypeSchema !== null)
+				$references+= $superTypeSchema->getReferences();
+		}
+
+		$this->referencePlan = [];
+		foreach($references as $propertyName => $reference) {
+			if(isset($superType) && $superType == $reference['type'])
+				continue;
+
+			$referencedSchema = Schema::getSchema($reference['type']);
+			if(!$referencedSchema)
+				continue;
+
+			$this->referencePlan[] = [
+				'propertyName' => $propertyName,
+				'property' => $this->getPropertyReflection($propertyName),
+				'reference' => $reference,
+				'referencedSchema' => $referencedSchema,
+				'readColumnName' => $reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
+			];
+		}
+
+		return $this->referencePlan;
+	}
+
 	private function _fetch(object &$object, object $rs, ?\PDO $database): void
 	{
 		$statement = null;
@@ -140,128 +339,54 @@ class Hydrator
 			$rs = $statement->fetch(\PDO::FETCH_OBJ);
 		}
 
-		$columns = $this->schema->getColumns();
-		$superType = $this->schema->getSuperType();
-		if($superType !== null) { // is subType of $superType
-			$superTypeSchema = Schema::getSchema($superType);
-			$columns+= $superTypeSchema->getColumns();
+		foreach($this->getColumnPlan() as $column) {
+			$this->hydrateColumn($object, $rs, $column);
 		}
 
-		foreach($columns as $propertyName => $column) {
-			if(isset($column['columnName'])) {
-				$propertyReflection = $this->getPropertyReflection($propertyName);
-				// $propertyReflection->setAccessible(true);
-
-				if($propertyReflection->getType()) {
-					if($types = $this->getPropertyTypes($propertyReflection)) {
-						foreach($types as $type) {
-							if(!isset($rs->{$column['columnName']}) || is_null($rs->{$column['columnName']})) { // is not set or null
-								if($type->allowsNull()) { // is nullable
-									$propertyReflection->setValue($object, null);
-									break;
-								} else {
-									throw new \TypeError('Property "'.$propertyName.'" of model "'.$this->modelClassName.'" cannot take null value from column "'.$column['columnName'].'"');
-								}
-							} else {
-								$value = $rs->{$column['columnName']};
-
-								if($type->isBuiltin()) { // PHP builtin types
-									if($type->getName() == 'array' && $column['type'] == 'json') {
-										$propertyReflection->setValue($object, json_decode($value, true));
-										break;
-									}
-
-									$propertyReflection->setValue($object, $value);
-									break;
-								} else {
-									/** @psalm-var class-string $typeName */
-									$typeName = $type->getName();
-
-									if(enum_exists($typeName)) { // PHP enum
-										$propertyReflection->setValue(
-											$object,
-											constant($typeName.'::'.$value)
-											// $typeName::tryFrom($value)
-										);
-										break;
-									} elseif(class_exists($typeName, true)) { // object
-										$propertyReflection->setValue(
-											$object,
-											match($typeName) {
-												\DateTime::class => new \DateTime($value),
-												'stdClass' => json_decode($value),
-												default => new $typeName($value)
-											}
-										);
-										break;
-									}
-								}
-							}
-						}
-					} else {
-						$propertyReflection->setValue($object, $rs->{$column['columnName']});
-					}
-				}
-			}
-		}
-
-		$references = $this->schema->getReferences();
-		if(isset($superType)) // is subType of $superType
-			$references+= $superTypeSchema->getReferences();
-
-		// if(isset($subTypeSchema)) // is superType
-		// 	$references+= array_diff_key($subTypeSchema->getReferences(), array_flip($this->schema->getUIdPropertyName()));
-
+		$references = $this->getReferencePlan();
 		if(!empty($references) && empty($database))
 			throw new \InvalidArgumentException('No database to use for subsequent queries.');
 
-		foreach($references as $propertyName => $reference) {
-			if($referencedSchema = Schema::getSchema($reference['type'])) {
-				if(isset($superType) && $superType == $reference['type'])
-					continue;
+		foreach($references as $plan) {
+			$propertyReflection = $plan['property'];
+			$reference = $plan['reference'];
+			$referencedSchema = $plan['referencedSchema'];
+			$propertyName = $plan['propertyName'];
 
-				$propertyReflection = $this->getPropertyReflection($propertyName);
-
-				switch($reference['cardinality']) {
-					case Cardinality::OneToOne:
+			switch($reference['cardinality']) {
+				case Cardinality::OneToOne:
+					$id = isset($reference['columnName']) ? ($rs->{$reference['columnName']} ?? null) : null;
+					if($id === null) {
+						if($referencedSchema->isSuperType() || static::allowsNull($propertyReflection->getType()))
+							$propertyReflection->setValue($object, null);
+						else
+							throw new \TypeError('Reference column "'.$reference['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property (reference) "'.$propertyName.'"');
+					} else {
 						$propertyReflection->setValue(
 							$object,
-							$referencedSchema->isSuperType() || static::allowsNull($propertyReflection->getType())
-								? $statement->execute($database)
-								: $this->makeGhost(
-									$reference['type'],
-									$statement,
-									$database
-								)
+							$this->makeReference($reference['type'], $referencedSchema, $plan['readColumnName'], $id, $database)
 						);
-					break;
-					case Cardinality::OneToMany:
-						if($referencedSchema->isEnum())
-							$propertyReflection->setValue($object, $reference['type']::from($rs->{$reference['columnName']}));
-						else {
-							$statement = $reference['type']::read()
-								->where(Condition::EQUAL(
-									$reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(),
-									$rs->{$reference['columnName']}
-								)
-							);
-
-							$propertyReflection->setValue(
-								$object,
-								// $statement->execute($database)
-								$referencedSchema->isSuperType() || static::allowsNull($propertyReflection->getType())
-									? $statement->execute($database)
-									: $this->makeGhost(
-										$reference['type'],
-										$statement,
-										$database
-									)
-							);
-						}
-					break;
-					case Cardinality::ManyToOne:
-						// $propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
-						// if(isset($reference['inverse'])) {
+					}
+				break;
+				case Cardinality::OneToMany:
+					$id = $rs->{$reference['columnName']} ?? null;
+					if($id === null) {
+						if($referencedSchema->isEnum() || static::allowsNull($propertyReflection->getType()))
+							$propertyReflection->setValue($object, null);
+						else
+							throw new \TypeError('Reference column "'.$reference['columnName'].'" in schema "'.$this->modelClassName.'" cannot take null value from property (reference) "'.$propertyName.'"');
+					} elseif($referencedSchema->isEnum()) {
+						$propertyReflection->setValue($object, $reference['type']::from($id));
+					} else {
+						$propertyReflection->setValue(
+							$object,
+							$this->makeReference($reference['type'], $referencedSchema, $plan['readColumnName'], $id, $database)
+						);
+					}
+				break;
+				case Cardinality::ManyToOne:
+					// $propertyReflection->setValue($object, $reference['type']::read()->where($reference['foreignColumnName'] ?? $referencedSchema->getUIdColumnNameString(), Comparator::EQUAL, $rs->{$reference['columnName']})->execute($database));
+					// if(isset($reference['inverse'])) {
 							$propertyReflection->setValue(
 								$object,
 								$reference['type']::search()
@@ -271,17 +396,16 @@ class Hydrator
 									)
 								)->execute($database)
 							);
-						// }
-					break;
-					case Cardinality::ManyToMany:
-						$propertyReflection->setValue(
-							$object,
-							$reference['type']::search()
-								->with($propertyName, Comparator::EQUAL, $object)
-								->execute($database)
-						);
-					break;
-				}
+					// }
+				break;
+				case Cardinality::ManyToMany:
+					$propertyReflection->setValue(
+						$object,
+						$reference['type']::search()
+							->with($propertyName, Comparator::EQUAL, $object)
+							->execute($database)
+					);
+				break;
 			}
 		}
 	}
@@ -313,17 +437,17 @@ class Hydrator
 			return [$id, $object];
 
 		if(is_a($this->modelClassName, Model::class, true)) { // is model
-			if($lazy) { // lazy
-				$object = $this->classReflection->newLazyGhost(function (object $ghost) use ($rs, $database): void {
-					$this->_fetch($ghost, $rs, $database, true);
-					(new \ReflectionObject($ghost))->markLazyObjectAsInitialized($ghost);
-				});
-			} else { // eager
-				$object = $this->classReflection->newInstanceWithoutConstructor();
-				$this->_fetch($object, $rs, $database, false);
-			}
+				if($lazy) { // lazy
+					$object = $this->classReflection->newLazyGhost(function (object $ghost) use ($rs, $database): void {
+						$this->_fetch($ghost, $rs, $database);
+						(new \ReflectionObject($ghost))->markLazyObjectAsInitialized($ghost);
+					});
+				} else { // eager
+					$object = $this->classReflection->newInstanceWithoutConstructor();
+					$this->_fetch($object, $rs, $database);
+				}
 
-			$this->_setModel($object);
+			$this->_setModel($id, $object);
 			self::$fetchCount++;
 
 			return [$id, $object];
